@@ -322,6 +322,9 @@ class PolicyIterationRuntime(DistributedRuntime):
         )
 
         # Iterate over all checkpoints and run all inference pipelines
+        ckpts_steps = [int(PolicyTrainer.parse_checkpoint_name(ckpt.name)[-1]) for ckpt in ckpts]
+        idx_max = torch.argmax(torch.tensor(ckpts_steps))
+        # ckpts = [ckpts[idx_max]]
         for ckpt in ckpts:
             ckpt_global_step = PolicyTrainer.parse_checkpoint_name(ckpt.name)[-1]
 
@@ -358,6 +361,8 @@ class PolicyIterationRuntime(DistributedRuntime):
             for pipeline_cfg in self.inference_pipeline_configs:
                 pipeline_cfg = copy.deepcopy(pipeline_cfg)
                 inference_name = pipeline_cfg["inference_name"]
+                if 'train' in inference_name:
+                    continue
                 logger.info(f"Running inference pipeline `{inference_name}`")
 
                 infer_pipeline_root_dir = eval_dir / inference_name

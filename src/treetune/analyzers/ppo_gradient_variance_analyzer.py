@@ -436,6 +436,7 @@ class PPOGradientVarianceAnalyzer(Analyzer):
             old_logprobs=shifted_actor_logprobs,
             ref_logprobs=shifted_ref_logprobs,
             advantages=advantages,
+            rewards=rewards,
         )
         actor_loss.backward()
 

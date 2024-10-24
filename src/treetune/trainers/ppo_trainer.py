@@ -132,6 +132,7 @@ class PPOHParams:
     grayen_advantages: bool = False
     whiten_rewards: bool = False
     temperature: float = 1.0
+    is_mixed_rewards: bool = True
 
     def __post_init__(self):
         assert self.temperature > 0, "Temperature should be positive."
@@ -686,6 +687,10 @@ class PPOTrainer(DeepSpeedPolicyTrainer):
         labels = inputs["labels"]  # Shape: (batch_size, max_seq_len)
         scores = inputs["scores"]  # Shape: (batch_size,)
 
+        if self.ppo_hparams.is_mixed_rewards:
+            scores = scores.float()
+            scores = ((scores * 2.0) - 1.0)
+
         shifted_labels = labels[
             ..., 1:
         ].contiguous()  # Shape: (batch_size, max_seq_len-1)
@@ -770,6 +775,7 @@ class PPOTrainer(DeepSpeedPolicyTrainer):
         }
 
         # Step 2: Compute the policy/actor loss
+        scores_rewards = rewards - non_score_rewards
         actor_loss, is_skipped, actor_metrics, approx_ref_kl = self._compute_actor_loss(
             actor,
             model_inputs=model_inputs,
@@ -813,6 +819,8 @@ class PPOTrainer(DeepSpeedPolicyTrainer):
                 advantages, shifted_labels_mask, threshold=1e-8
             ).detach(),
             "rewards/mean": masked_mean(rewards, shifted_labels_mask).detach(),
+            "scores/num_pos_per": masked_mean(advantages>0, shifted_labels_mask).detach(),
+            "scores/num_negative_per": masked_mean(advantages<0, shifted_labels_mask).detach(),
             "num_tokens": shifted_labels_mask.sum().detach(),
             "_num_participating_tokens": shifted_labels_mask.sum().detach(),
             **actor_metrics,
@@ -904,6 +912,27 @@ class PPOTrainer(DeepSpeedPolicyTrainer):
         pg_losses = torch.max(pg_losses1, pg_losses2)
         pg_loss = masked_mean(pg_losses, action_mask)
 
+        if self.ppo_hparams.is_mixed_rewards:
+            # let's set 1/2 std of adv to 0, assume adv mean is 0
+            std_adv = torch.std(advantages.detach())
+            clamped_adv = torch.clamp(advantages, -0.5*std_adv, 0.5*std_adv)
+            clamped_adv_mask = clamped_adv==advantages
+            advantages[clamped_adv_mask] = 0
+            
+
+            other_loss = -advantages * (logprobs - old_logprobs) * action_mask
+            positive_rewards_mask = (advantages >= 0).float()
+            # C_adj = (ratio).detach()
+            other_loss = other_loss #* C_adj
+
+            tot_loss = other_loss * positive_rewards_mask + pg_losses * (1 - positive_rewards_mask)
+            pg_loss = masked_mean(tot_loss, action_mask)
+
+            ppo_mask = (positive_rewards_mask * action_mask).bool()
+            sppo_mask = ((1 - positive_rewards_mask) * action_mask).bool()
+        else:
+            ppo_mask = action_mask
+
         if self.ppo_hparams.kl_penalty_loss_type is not None:
             assert ref_logprobs is not None
             ref_kl = self._compute_kl_penalty(
@@ -934,8 +963,17 @@ class PPOTrainer(DeepSpeedPolicyTrainer):
             is_skipped = True
 
         pg_clip_frac = masked_mean(
-            torch.gt(pg_losses2, pg_losses1).float(), action_mask
+            torch.gt(pg_losses2, pg_losses1).float(), ppo_mask
         )
+
+        if self.ppo_hparams.is_mixed_rewards:
+            pg_clip_sppo = masked_mean(
+                torch.gt(pg_losses2, pg_losses1).float(), sppo_mask
+            )
+            sppo_anomalies = monitor_tensor_anomalies(
+                pg_losses2.detach(), sppo_mask
+            )
+
         approx_kl = 0.5 * masked_mean((logprobs - old_logprobs) ** 2, action_mask)
         policy_kl = masked_mean(old_logprobs - logprobs, action_mask)
 
@@ -953,6 +991,11 @@ class PPOTrainer(DeepSpeedPolicyTrainer):
             metrics["actor/logit_entropy"] = outputs["entropy"].detach()
         if ref_kl_loss is not None:
             metrics["actor/ref_kl_loss"] = ref_kl_loss.detach()
+        if self.ppo_hparams.is_mixed_rewards:
+            metrics["actor/clip_frac_sppo"] = pg_clip_sppo.detach()
+            metrics['num_clamped_adv'] = (clamped_adv_mask).sum().detach()
+            for i, v in sppo_anomalies.items():
+                metrics[f"actor/sppo_anomalies_{i}"] = v
 
         return pg_loss, is_skipped, metrics, ref_kl
 

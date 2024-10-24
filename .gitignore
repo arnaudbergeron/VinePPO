@@ -279,3 +279,7 @@ model_outputs/
 configs/.wandb_api_key.json
 /results/inference_results/
 /cached_inference_results/
+pckgs
+
+temp_ppo_checkpoints
+tmp_ckpt*
