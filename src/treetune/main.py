@@ -93,7 +93,7 @@ class EntryPoint(object):
         # Override the root directory, if an environment variable is set.
         orig_directory = config.get("directory", "experiments")
         scratch_directory = os.environ.get("SCRATCH")
-        config["directory"] = f"{scratch_directory}/vine/experiments/mixed_adv_clipped_adv"
+        config["directory"] = f"{scratch_directory}/vine/experiments/sppo_baseline_128epi_batch_quarter_lr"
 
         return config
 
