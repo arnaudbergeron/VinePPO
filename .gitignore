@@ -283,3 +283,5 @@ pckgs
 
 temp_ppo_checkpoints
 tmp_ckpt*
+job_error.txt
+job_output.txt

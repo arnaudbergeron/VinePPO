@@ -324,7 +324,7 @@ class PolicyIterationRuntime(DistributedRuntime):
         # Iterate over all checkpoints and run all inference pipelines
         ckpts_steps = [int(PolicyTrainer.parse_checkpoint_name(ckpt.name)[-1]) for ckpt in ckpts]
         _siorted, idx_max = torch.sort(torch.tensor(ckpts_steps), descending=True)
-        ckpts = [ckpts[i] for i in idx_max] #
+        # ckpts = [ckpts[i] for i in idx_max] #
         for ckpt in ckpts:
             ckpt_global_step = PolicyTrainer.parse_checkpoint_name(ckpt.name)[-1]
 
