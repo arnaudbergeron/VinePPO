@@ -10,6 +10,7 @@ from weakref import WeakValueDictionary
 
 import numpy as np
 import torch
+import os
 from accelerate.checkpointing import save_custom_state, load_custom_state
 from accelerate.utils import release_memory, gather, pad_across_processes
 from datasets import Dataset
@@ -133,6 +134,15 @@ class PPOHParams:
     whiten_rewards: bool = False
     temperature: float = 1.0
     is_mixed_rewards: bool = True
+    positive_loss_method: Literal["ppo", "sppo"] = "ppo"
+    negative_loss_method: Literal["ppo", "sppo"] = "ppo"
+    relative_lr_ppo: float = 1.0
+    relative_lr_sppo: float = 1.0
+    curvature_adj: bool = False
+    sppo_clamp_value_low: float = None
+    sppo_clamp_value_high: float = None
+    clip_sppo_high: bool = True
+    clip_sppo_low: bool = True
 
     def __post_init__(self):
         assert self.temperature > 0, "Temperature should be positive."
@@ -226,7 +236,8 @@ class PPOTrainer(DeepSpeedPolicyTrainer):
         if temp_checkpoint_dir is not None:
             self.temp_checkpoint_dir = Path(temp_checkpoint_dir)
         else:
-            self.temp_checkpoint_dir = get_repo_dir() / "temp_ppo_checkpoints"
+            run_name = os.environ.get("WANDB_RUN_ID")
+            self.temp_checkpoint_dir = get_repo_dir() / "temp_ppo_checkpoints" / run_name
             logger.info(
                 f"No temporary checkpoint directory provided. Using {self.temp_checkpoint_dir}"
             )
@@ -940,8 +951,18 @@ class PPOTrainer(DeepSpeedPolicyTrainer):
                 pg_losses1.detach(), action_mask
             )
 
+        if self.ppo_hparams.clip_sppo_low:
+            ppo_low_clip = 1.0 - self.ppo_hparams.cliprange
+        else:
+            ppo_low_clip = None
+        
+        if self.ppo_hparams.clip_sppo_high:
+            ppo_high_clip = 1.0 + self.ppo_hparams.cliprange
+        else:
+            ppo_high_clip = None
+
         clipped_ratios = torch.clamp(
-            ratio, 1.0 - self.ppo_hparams.cliprange, 1.0 + self.ppo_hparams.cliprange
+            ratio, ppo_low_clip, ppo_high_clip
         )
         pg_losses2 = -advantages * clipped_ratios
         pg_losses = torch.max(pg_losses1, pg_losses2)
@@ -949,21 +970,23 @@ class PPOTrainer(DeepSpeedPolicyTrainer):
         if self.ppo_hparams.is_mixed_rewards:
             log_ratio_sppo = (logprobs - old_logprobs)
 
-            sppo_loss = -advantages * log_ratio_sppo * action_mask # * (clipped_ratios_sppo.clone().detach())
+            sppo_loss = -advantages * log_ratio_sppo * action_mask
+            if self.ppo_hparams.sppo_clamp_value_low is not None or self.ppo_hparams.sppo_clamp_value_high is not None:
+                low_clip_sppo = 1.0 - self.ppo_hparams.sppo_clamp_value_low if self.ppo_hparams.sppo_clamp_value_low is not None else None
+                high_clip_sppo = 1.0 + self.ppo_hparams.sppo_clamp_value_high if self.ppo_hparams.sppo_clamp_value_high is not None else None
+                clipped_ratios_sppo = torch.clamp(
+                    ratio, low_clip_sppo, high_clip_sppo
+                )
+                clipped_log_ratios = torch.log(clipped_ratios_sppo)
+                sppo_loss_2 = -advantages * clipped_log_ratios * action_mask
+                sppo_loss = torch.max(sppo_loss, sppo_loss_2) 
 
-            # old_probs = torch.exp(old_logprobs)
-            # error_treshold = 0.003
-            # err_term = advantages * old_probs * (torch.exp(log_ratio) - 1 - log_ratio) # this is the same term as approx kl
+            if self.ppo_hparams.curvature_adj:
+                sppo_loss = sppo_loss * (ratio)
 
-            positive_rewards_mask = (advantages >= 0).detach().float()# + (advantages < 0).float()
-            negative_rewards_mask = (1 - positive_rewards_mask)
+            tot_loss, ppo_mask, sppo_mask  = self._get_loss(advantages=advantages, ppo_loss=pg_losses, sppo_loss=sppo_loss)
 
-            tot_loss = sppo_loss * positive_rewards_mask # + pg_losses * negative_rewards_mask
-            # tot_loss = pg_losses
             pg_loss = masked_mean(tot_loss, action_mask)
-
-            ppo_mask = (negative_rewards_mask * action_mask).bool()
-            sppo_mask = (positive_rewards_mask * action_mask).bool()
         else:
             ppo_mask = action_mask
             pg_loss = masked_mean(pg_losses, action_mask)
@@ -1006,7 +1029,7 @@ class PPOTrainer(DeepSpeedPolicyTrainer):
                 torch.gt(pg_losses2, pg_losses1).float(), sppo_mask
             )
             sppo_anomalies = monitor_tensor_anomalies(
-                pg_losses2.detach(), sppo_mask
+                pg_losses2.detach(), sppo_mask.bool()
             )
 
         approx_kl = 0.5 * masked_mean((logprobs - old_logprobs) ** 2, action_mask)
@@ -1030,6 +1053,9 @@ class PPOTrainer(DeepSpeedPolicyTrainer):
             pos_ratios = ratio * (advantages > 0).float() * action_mask
             neg_ratios = ratio * (advantages < 0).float() * action_mask
 
+            negative_rewards_mask = (advantages < 0).float() * action_mask
+            positive_rewards_mask = (advantages > 0).float() * action_mask
+
             metrics["actor/clip_frac_sppo"] = pg_clip_sppo.detach()
             metrics["actor/ratio_sppo"] = masked_mean(ratio, sppo_mask).detach()
             metrics["actor/ratio_ppo"] = masked_mean(ratio, ppo_mask).detach()
@@ -1050,51 +1076,108 @@ class PPOTrainer(DeepSpeedPolicyTrainer):
 
             metrics["actor/mean_less_1_ratio_pos_adv"] = (torch.mean(pos_ratios[(pos_ratios> 0) & (pos_ratios < 1)])).detach()
             metrics["actor/mean_less_1_ratio_pneg_adv"] = (torch.mean(neg_ratios[(neg_ratios> 0) & (neg_ratios < 1)])).detach()
+            
+            metrics["actor/num_more_1_ratio_pos_adv"] = (torch.sum(pos_ratios[(pos_ratios> 0) & (pos_ratios > 1)])/num_non_zero_ratio_pos).detach()
+            metrics["actor/num_more_1_ratio_neg_adv"] = (torch.sum(neg_ratios[(neg_ratios> 0) & (neg_ratios > 1)])/num_non_zero_ratio_neg).detach()
+
+            metrics["actor/mean_more_1_ratio_pos_adv"] = (torch.mean(pos_ratios[(pos_ratios> 0) & (pos_ratios > 1)])).detach()
+            metrics["actor/mean_more_1_ratio_pneg_adv"] = (torch.mean(neg_ratios[(neg_ratios> 0) & (neg_ratios > 1)])).detach()
+
+            
 
             metrics["actor/ratio_ppo_minus_1"] = torch.mean((ratio-1).float()).detach()
 
             metrics["actor/num_ppo"] = torch.mean(negative_rewards_mask.float()).detach()
             metrics["actor/num_sppo"] = torch.mean(positive_rewards_mask.float()).detach()
 
-            metrics["actor/policy_kl_sppo"] = masked_mean(ref_kl, sppo_mask).detach()
-            metrics["actor/policy_kl_ppo"] = masked_mean(ref_kl, ppo_mask).detach()
-            # sppo_grad = 1/torch.exp(clip_probs)
-            # metrics["actors/mean_deriv_ratio_sppo"] = masked_mean(1/torch.exp(clip_probs), sppo_mask).detach()
-            # metrics["actor/std_deriv_ratio_sppo"] = masked_var(advantages*sppo_grad, ppo_mask).detach()
-            # metrics["actor/number_clips_sppo"] = masked_mean((clip_probs == min_logprob).float(), sppo_mask).detach()
-            # ppo_grad = 1/torch.exp(clip_old_probs)
-            # metrics["actor/mean_deriv_ratio_ppo"] = masked_mean(ppo_grad, ppo_mask).detach()
-            # metrics["actor/std_deriv_ratio_ppo"] = masked_var(advantages*ppo_grad, ppo_mask).detach()
+            ref_reduced_kl = self.kl_ctl.value * ref_kl
+            metrics["actor/policy_ref_kl_no_clip_sppo"] = masked_mean(ref_reduced_kl, sppo_mask).detach()
+            metrics["actor/policy_ref_kl_no_clip_ppo"] = masked_mean(ref_reduced_kl, ppo_mask).detach()
+
+            sppo_less_1 = (ratio < 1).float() * sppo_mask
+            sppo_more_1 = (ratio > 1).float() * sppo_mask
+            metrics["actor/policy_ref_kl_sppo_r_less_1"] = masked_mean(ref_reduced_kl, sppo_less_1).detach()
+            metrics["actor/policy_ref_kl_sppo_r_more_1"] = masked_mean(ref_reduced_kl, sppo_more_1).detach()
+
+            ppo_less_1 = (ratio < 1).float() * ppo_mask
+            ppo_more_1 = (ratio > 1).float() * ppo_mask
+            metrics["actor/policy_ref_kl_ppo_r_less_1"] = masked_mean(ref_reduced_kl, ppo_less_1).detach()
+            metrics["actor/policy_ref_kl_ppo_r_more_1"] = masked_mean(ref_reduced_kl, ppo_more_1).detach()
+
+            metrics["actor/policy_ref_kl_positive_adv"] = masked_mean(ref_reduced_kl, positive_rewards_mask).detach()
+            metrics["actor/policy_ref_kl_negative_adv"] = masked_mean(ref_reduced_kl, negative_rewards_mask).detach()
+
 
             prob_diff = torch.abs(torch.exp(logprobs) - torch.exp(old_logprobs))
             metrics['actor/max_mu_pi_diff_sppo']  = torch.max(prob_diff*sppo_mask).detach()
             metrics['actor/mean_mu_pi_diff_sppo']  = masked_mean(prob_diff, sppo_mask).detach()
             metrics['actor/mean_mu_pi_diff_ppo']  = masked_mean(prob_diff, ppo_mask).detach()
             metrics['actor/max_mask']  = torch.max(sppo_mask.float()).detach()
-            metrics['actor/err_term_sppo'] = masked_mean(err_term, sppo_mask).detach()
-            metrics['actor/err_term_sppo_num_nan'] = torch.mean(torch.isnan(err_term).float()).detach()
+
             metrics['actor/ratio_is_nan'] = torch.mean(torch.isnan(log_ratio).float()).detach()
             metrics['actor/log_ratio_is_nan'] = torch.mean(torch.isnan(torch.exp(log_ratio)).float()).detach()
 
             ref_ratio = torch.exp((logprobs - ref_logprobs) * action_mask)
             metrics['actor/ratio_ref_positive_adv'] = masked_mean(ref_ratio, (advantages > 0).float() * action_mask).detach()
             metrics['actor/ratio_ref_negative_adv'] = masked_mean(ref_ratio, (advantages < 0).float() * action_mask).detach()
-            
-            # pi = torch.exp(logprobs*action_mask)
-            # metrics['actor/pi_pos_adv_mean'] = masked_mean(pi, (advantages > 0).float() * action_mask).detach()
-            # metrics['actorpi_neg_adv_mean'] = masked_mean(pi, (advantages < 0).float() * action_mask).detach()
 
-            # # metrics['actor/pi_pos_adv_std'] = masked_var(pi, (advantages > 0).float() * action_mask).detach()
-            # # metrics['actor/pi_neg_adv_std'] = masked_var(pi, (advantages < 0).float() * action_mask).detach()
-
-            # # ref_kl_eps = ref_kl[ref_kl > 1e-5]
-            # # metrics['actor/kl_loss_ratio_pos_adv_mean'] = (masked_mean(sppo_loss[ref_kl > 1e-5]/ref_kl_eps, ((advantages > 0).float() * action_mask)[ref_kl > 1e-5])).detach()
-            # # metrics['actor/kl_loss_ratio_neg_adv_mean'] = (masked_mean(pg_losses[ref_kl > 1e-5]/ref_kl_eps, ((advantages > 0).float() * action_mask)[ref_kl > 1e-5])).detach()
+            loss_grad = torch.autograd.grad(tot_loss, logprobs, torch.ones_like(tot_loss), create_graph=True)[0]
+            metrics['actor/grad_norm_ppo'] = loss_grad[ppo_mask.bool()].norm().detach()
+            metrics['actor/grad_norm_sppo'] = loss_grad[sppo_mask.bool()].norm().detach()
 
             for i, v in sppo_anomalies.items():
                 metrics[f"actor/sppo_anomalies_{i}"] = v
 
         return pg_loss, is_skipped, metrics, ref_kl
+    
+
+    def _get_loss(
+        self,
+        advantages,
+        ppo_loss,
+        sppo_loss):
+
+        positive_advantages = (advantages > 0).float()
+        negative_advantages = (advantages < 0).float()
+
+        ppo_mask = torch.zeros_like(advantages)
+        sppo_mask = torch.zeros_like(advantages)
+
+        if self.ppo_hparams.positive_loss_method == "ppo":
+            ppo_mask += positive_advantages
+
+        elif self.ppo_hparams.positive_loss_method == "sppo":
+            sppo_mask += positive_advantages
+        
+        else:
+            #do nothing no positive loss
+            pass
+
+        if self.ppo_hparams.negative_loss_method == "ppo":
+            ppo_mask += negative_advantages
+
+        elif self.ppo_hparams.negative_loss_method == "sppo":
+            sppo_mask += negative_advantages
+
+        else:
+            #do nothing no negative loss
+            pass
+        
+        #assert mask values are not overlapping
+        assert torch.sum(ppo_mask * sppo_mask) == 0
+
+        #assert that all values are 0 or 1
+        assert torch.max(ppo_mask) <= 1
+        assert torch.min(ppo_mask) >= 0
+        assert torch.max(sppo_mask) <= 1
+        assert torch.min(sppo_mask) >= 0
+
+        ppo_lr = self.ppo_hparams.relative_lr_ppo
+        sppo_lr = self.ppo_hparams.relative_lr_sppo 
+    
+        loss = ppo_lr * ppo_loss * ppo_mask + sppo_lr * sppo_loss * sppo_mask
+
+        return loss, ppo_mask.float(), sppo_mask.float()
 
     def _compute_critics_loss(
         self,
