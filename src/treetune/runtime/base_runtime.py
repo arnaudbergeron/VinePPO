@@ -130,7 +130,7 @@ class BaseRuntime(Runtime):
             )
             wandb.init(
                 config=self.config_dict,
-                project=self.project_name,
+                project="VinePPO-src_treetune",
                 name=self.exp_name,
                 resume="allow",
                 mode=mode,

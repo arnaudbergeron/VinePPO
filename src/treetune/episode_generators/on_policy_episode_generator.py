@@ -467,6 +467,7 @@ class OnPolicyEpisodeGenerator(EpisodeGenerator):
         results = inference_strategy.generate(dataset_shard)
         results.save_to_disk(str(infer_result_path))
         vllm_server.stop_server()
+
         del results
         del vllm_server
         release_memory()

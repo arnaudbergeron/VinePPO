@@ -52,6 +52,7 @@ from treetune.trainers.utils import (
     monitor_tensor_anomalies,
     close_to_zero_percentage,
     masked_rescale_by_std,
+    masked_normalize
 )
 
 logger = get_logger(__name__)
@@ -131,6 +132,7 @@ class PPOHParams:
     score_clip: Optional[float] = None
     whiten_advantages: bool = True
     grayen_advantages: bool = False
+    normalize_advantages: bool = False
     whiten_rewards: bool = False
     temperature: float = 1.0
     is_mixed_rewards: bool = True
@@ -143,6 +145,8 @@ class PPOHParams:
     sppo_clamp_value_high: float = None
     clip_sppo_high: bool = True
     clip_sppo_low: bool = True
+    use_value_clip: bool = True
+    scale_sign_equal: bool = True
 
     def __post_init__(self):
         assert self.temperature > 0, "Temperature should be positive."
@@ -162,6 +166,7 @@ class PPOTrainer(DeepSpeedPolicyTrainer):
         general_training_args: JsonDict,
         critic_model: Optional[Lazy[Model]] = None,
         critic_deepspeed_config: Optional[JsonDict] = None,
+        critic_ckpt_path: Optional[str] = None,
         reference_model: Optional[Lazy[Model]] = None,
         reference_deepspeed_config: Optional[JsonDict] = None,
         num_iterations: int = 1,
@@ -189,6 +194,10 @@ class PPOTrainer(DeepSpeedPolicyTrainer):
         self.num_epochs_per_iteration = num_epochs_per_iteration
         self.num_episodes_per_iteration = num_episodes_per_iteration
         self._compute_batch_size_and_steps()
+        if critic_ckpt_path is not None:
+            self.critic_ckpt_path = Path(critic_ckpt_path)
+        else: 
+            self.critic_ckpt_path = None
 
         self.actor_lazy = actor_model
         self.actor_deepspeed_config = actor_deepspeed_config
@@ -235,6 +244,11 @@ class PPOTrainer(DeepSpeedPolicyTrainer):
 
         if temp_checkpoint_dir is not None:
             self.temp_checkpoint_dir = Path(temp_checkpoint_dir)
+            # slrmtmp = os.environ.get("SLURM_TMPDIR")
+            # self.temp_checkpoint_dir = Path(slrmtmp) / "tmp_ppo_checkpoints"
+            # print("hfhome: ", os.environ.get("HF_HOME"))
+            # print("slrmtmp dir: ", os.listdir(slrmtmp))
+
         else:
             run_name = os.environ.get("WANDB_RUN_ID")
             self.temp_checkpoint_dir = get_repo_dir() / "temp_ppo_checkpoints" / run_name
@@ -392,7 +406,7 @@ class PPOTrainer(DeepSpeedPolicyTrainer):
         critic_engine = None
         if self._has_critic_model():
             logger.info("Initializing the critic model.")
-            critic_engine = self._init_critic_model()
+            critic_engine = self._init_critic_model(hf_checkpoint_path=self.critic_ckpt_path)
 
         # Load from checkpoint if specified
         need_to_save_temp_checkpoint = not self.cache_deepspeed_engines
@@ -599,26 +613,7 @@ class PPOTrainer(DeepSpeedPolicyTrainer):
                 # Perform the training step, LR scheduler step, zero_grad, and accumulation of gradients
                 # noinspection PyTypeChecker
                 metrics = self._training_step(inputs, actor, critic)
-                # critic_list.append(critic_loss)
-                # actor_list.append(actor_loss)
-                # Accumulate the losses
-                # critic_acc_loss += critic_loss
-                # actor_acc_loss += actor_loss
-
-                # if step+1 % num_acc_steps == 0 and step > 0:
-                #     critic_acc_loss = critic_acc_loss/num_acc_steps
-                #     actor_acc_loss = actor_acc_loss/num_acc_steps
-                #     critic.backward(critic_acc_loss)
-                #     self._check_overflow(critic)
-                #     critic.step()
-                #     actor.backward(actor_acc_loss)
-                #     self._check_overflow(actor)
-                #     actor.step()
-                #     critic_acc_loss = torch.tensor([0.0], device=critic.device)
-                #     actor_acc_loss = torch.tensor([0.0], device=actor.device)
-
-
-
+                
                 self._update_metrics(running_metrics, accumulated_metrics, metrics)
 
                 if is_grad_acc_boundary:
@@ -854,6 +849,13 @@ class PPOTrainer(DeepSpeedPolicyTrainer):
             critic_metrics = {}
             critic_loss = None
 
+        zero_reward_mask = torch.zeros_like(rewards, dtype=torch.bool)
+        has_positive_rewards = torch.max(rewards > 0, dim=1).values
+        zero_reward_mask[has_positive_rewards, :] = True
+
+        adv_metrics = {"advantages/dist": np.array(advantages.cpu())}
+        self._cloud_log(adv_metrics)
+
         metrics = {
             "advantages/mean": masked_mean(advantages, shifted_labels_mask).detach(),
             "advantages/std": (
@@ -865,6 +867,7 @@ class PPOTrainer(DeepSpeedPolicyTrainer):
             "rewards/mean": masked_mean(rewards, shifted_labels_mask).detach(),
             "scores/num_pos_per": masked_mean(advantages>0, shifted_labels_mask).detach(),
             "scores/num_negative_per": masked_mean(advantages<0, shifted_labels_mask).detach(),
+            'actor/zero_reward_prob' : masked_mean(torch.exp(shifted_actor_logprobs), zero_reward_mask).detach(),
             "num_tokens": shifted_labels_mask.sum().detach(),
             "_num_participating_tokens": shifted_labels_mask.sum().detach(),
             **actor_metrics,
@@ -964,6 +967,7 @@ class PPOTrainer(DeepSpeedPolicyTrainer):
         clipped_ratios = torch.clamp(
             ratio, ppo_low_clip, ppo_high_clip
         )
+
         pg_losses2 = -advantages * clipped_ratios
         pg_losses = torch.max(pg_losses1, pg_losses2)
 
@@ -974,9 +978,11 @@ class PPOTrainer(DeepSpeedPolicyTrainer):
             if self.ppo_hparams.sppo_clamp_value_low is not None or self.ppo_hparams.sppo_clamp_value_high is not None:
                 low_clip_sppo = 1.0 - self.ppo_hparams.sppo_clamp_value_low if self.ppo_hparams.sppo_clamp_value_low is not None else None
                 high_clip_sppo = 1.0 + self.ppo_hparams.sppo_clamp_value_high if self.ppo_hparams.sppo_clamp_value_high is not None else None
+                
                 clipped_ratios_sppo = torch.clamp(
                     ratio, low_clip_sppo, high_clip_sppo
                 )
+
                 clipped_log_ratios = torch.log(clipped_ratios_sppo)
                 sppo_loss_2 = -advantages * clipped_log_ratios * action_mask
                 sppo_loss = torch.max(sppo_loss, sppo_loss_2) 
@@ -1083,8 +1089,6 @@ class PPOTrainer(DeepSpeedPolicyTrainer):
             metrics["actor/mean_more_1_ratio_pos_adv"] = (torch.mean(pos_ratios[(pos_ratios> 0) & (pos_ratios > 1)])).detach()
             metrics["actor/mean_more_1_ratio_pneg_adv"] = (torch.mean(neg_ratios[(neg_ratios> 0) & (neg_ratios > 1)])).detach()
 
-            
-
             metrics["actor/ratio_ppo_minus_1"] = torch.mean((ratio-1).float()).detach()
 
             metrics["actor/num_ppo"] = torch.mean(negative_rewards_mask.float()).detach()
@@ -1125,6 +1129,30 @@ class PPOTrainer(DeepSpeedPolicyTrainer):
             metrics['actor/grad_norm_ppo'] = loss_grad[ppo_mask.bool()].norm().detach()
             metrics['actor/grad_norm_sppo'] = loss_grad[sppo_mask.bool()].norm().detach()
 
+            metrics['actor/grad_norm_pos_adv'] = loss_grad[positive_rewards_mask.bool()].norm().detach()
+            metrics['actor/grad_norm_neg_adv'] = loss_grad[negative_rewards_mask.bool()].norm().detach()
+
+            loss_grad_with_kl = torch.autograd.grad(pg_loss, logprobs,  create_graph=True)[0]
+            metrics['actor/grad_norm_with_kl_ppo'] = loss_grad_with_kl[ppo_mask.bool()].norm().detach()
+            metrics['actor/grad_norm_with_kl_sppo'] = loss_grad_with_kl[sppo_mask.bool()].norm().detach()
+
+            metrics['actor/grad_norm_with_kl_pos_adv'] = loss_grad_with_kl[positive_rewards_mask.bool()].norm().detach()
+            metrics['actor/grad_norm_with_kl_neg_adv'] = loss_grad_with_kl[negative_rewards_mask.bool()].norm().detach()
+
+            kl_grad = torch.autograd.grad(ref_kl_loss, logprobs, create_graph=True)[0]
+            metrics['actor/kl_grad_norm_sppo'] = kl_grad[sppo_mask.bool()].norm().detach()
+            metrics['actor/kl_grad_norm_ppo'] = kl_grad[ppo_mask.bool()].norm().detach()
+
+            metrics['actor/kl_grad_norm_pos_adv'] = kl_grad[positive_rewards_mask.bool()].norm().detach()
+            metrics['actor/kl_grad_norm_neg_adv'] = kl_grad[negative_rewards_mask.bool()].norm().detach()
+
+            pos_adv_mean = masked_mean(advantages, positive_rewards_mask).detach()
+            neg_adv_mean = masked_mean(advantages, negative_rewards_mask).detach()
+            metrics['actor/pos_adv_mean'] = pos_adv_mean
+            metrics['actor/neg_adv_mean'] = neg_adv_mean
+
+            metrics['actor/pos_adv_mean_ratio'] = pos_adv_mean / neg_adv_mean
+
             for i, v in sppo_anomalies.items():
                 metrics[f"actor/sppo_anomalies_{i}"] = v
 
@@ -1139,6 +1167,11 @@ class PPOTrainer(DeepSpeedPolicyTrainer):
 
         positive_advantages = (advantages > 0).float()
         negative_advantages = (advantages < 0).float()
+
+        pos_adv_mean = torch.mean(advantages[positive_advantages.bool()])
+        neg_adv_mean = torch.mean(advantages[negative_advantages.bool()])
+
+        pos_negative_ratio = torch.abs(pos_adv_mean / neg_adv_mean)
 
         ppo_mask = torch.zeros_like(advantages)
         sppo_mask = torch.zeros_like(advantages)
@@ -1176,6 +1209,10 @@ class PPOTrainer(DeepSpeedPolicyTrainer):
         sppo_lr = self.ppo_hparams.relative_lr_sppo 
     
         loss = ppo_lr * ppo_loss * ppo_mask + sppo_lr * sppo_loss * sppo_mask
+
+        if self.ppo_hparams.scale_sign_equal:
+            pos_negative_ratio = torch.clamp(pos_negative_ratio, 0.1, 5)
+            loss[positive_advantages.bool()] = loss[positive_advantages.bool()] / (pos_negative_ratio)
 
         return loss, ppo_mask.float(), sppo_mask.float()
 
@@ -1224,19 +1261,25 @@ class PPOTrainer(DeepSpeedPolicyTrainer):
         assert action_mask.shape == valid_values.shape
 
         # Compute the critic loss (MSE loss)
-        values_clipped = torch.clamp(
-            valid_values,
-            old_valid_values - self.ppo_hparams.cliprange_value,
-            old_valid_values + self.ppo_hparams.cliprange_value,
-        )
 
         vf_losses1 = (valid_values - returns) ** 2
         with torch.no_grad():
             vf_losses1_anomalies = monitor_tensor_anomalies(
                 vf_losses1.detach(), action_mask
             )
+
+        values_clipped = torch.clamp(
+            valid_values,
+            old_valid_values - self.ppo_hparams.cliprange_value,
+            old_valid_values + self.ppo_hparams.cliprange_value,
+        )
         vf_losses2 = (values_clipped - returns) ** 2
-        vf_losses = torch.max(vf_losses1, vf_losses2)
+        
+        if self.ppo_hparams.use_value_clip:
+            vf_losses = torch.max(vf_losses1, vf_losses2)
+        else:
+            vf_losses = vf_losses1
+
         vf_loss = 0.5 * masked_mean(vf_losses, action_mask)
 
         vf_clip_frac = masked_mean(
@@ -1377,6 +1420,11 @@ class PPOTrainer(DeepSpeedPolicyTrainer):
                 distributed=True,
                 unbiased_variance=True,
             )
+        elif self.ppo_hparams.normalize_advantages:
+            advantages = masked_normalize(
+                advantages, shifted_labels_mask, distributed=True, unbiased_variance=True,
+            )
+            
         return advantages.detach(), returns.detach()
 
     def _compute_kl_penalty(
@@ -1747,7 +1795,11 @@ class PPOTrainer(DeepSpeedPolicyTrainer):
                 weight = 1
 
             value = value * weight
-            accumulated_metrics[key] += value
+            try:
+                accumulated_metrics[key] += value
+            except:
+                value = value.to(accumulated_metrics[key].device)
+                accumulated_metrics[key] += value
 
         # Update Running Metrics
         running_metrics["_num_participating_tokens"] += num_tokens

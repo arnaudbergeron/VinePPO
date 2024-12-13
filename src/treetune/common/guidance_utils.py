@@ -1,5 +1,5 @@
 import guidance
-
+import time
 
 async def run_program(guidance_template, **kwargs):
     program = guidance(
@@ -10,5 +10,7 @@ async def run_program(guidance_template, **kwargs):
         stream=False,
         await_missing=True,
     )
-    result = await program(**kwargs)
+
+    result = await program(**kwargs)  # Async execution profiled here
+    
     return result

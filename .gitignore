@@ -285,3 +285,5 @@ temp_ppo_checkpoints
 tmp_ckpt*
 job_error.txt
 job_output.txt
+treetune_v15.sif
+vllm_hf_folder_cache.json

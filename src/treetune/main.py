@@ -34,6 +34,7 @@ class EntryPoint(object):
 
         # Build the config object from the jsonnet files.
         config = self._load_config_obj(config_paths)
+        # os.environ['HF_HOME'] = f'{os.environ.get("SLURM_TMPDIR")}/.cache/huggingface'
 
         # If the config doesn't specify a seed, use the default.
         if "global_vars" not in config or "seed" not in config["global_vars"]:
@@ -94,7 +95,7 @@ class EntryPoint(object):
         orig_directory = config.get("directory", "experiments")
         scratch_directory = os.environ.get("SCRATCH")
         wandb_run_id = os.environ.get("WANDB_RUN_ID")
-        config["directory"] = f"{scratch_directory}/vine/experiments/{wandb_run_id}"
+        config["directory"] = f"{scratch_directory}/vine_run_sing/experiments/{wandb_run_id}"
 
         return config
 

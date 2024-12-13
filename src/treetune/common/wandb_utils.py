@@ -110,7 +110,7 @@ def get_entity_name() -> str:
     with wandb_account_file.open("r") as f:
         wandb_account = json.load(f)
     entity = wandb_account["entity"]
-    return entity
+    return "VinePPO-src_treetune"
 
 
 def get_project_name() -> str:
@@ -119,7 +119,7 @@ def get_project_name() -> str:
     with wandb_account_file.open("r") as f:
         wandb_account = json.load(f)
     project = wandb_account["project"]
-    return project
+    return "VinePPO-src_treetune"
 
 
 def get_api_key() -> str:

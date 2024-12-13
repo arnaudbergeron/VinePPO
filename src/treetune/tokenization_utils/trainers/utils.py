@@ -282,6 +282,25 @@ def masked_whiten(
         whitened += mean
     return whitened
 
+def masked_normalize(
+    values, mask, shift_mean=True, distributed=False, unbiased_variance=False
+):
+    """Normalize values with masked values."""
+    from deepspeed import comm as dist
+
+    if distributed and dist.is_initialized():
+        mean, var = get_global_statistics_no_move(
+            dist, values, mask=mask, unbiased=unbiased_variance
+        )
+    else:
+        mean, var = masked_mean(values, mask), masked_var(
+            values, mask, unbiased=unbiased_variance
+        )
+    shifted = (values - mean)
+    if not shift_mean:
+        shifted += mean
+    return shifted
+
 
 def masked_rescale_by_std(values, mask, distributed=False, unbiased_variance=False):
     """Whiten values with masked values."""

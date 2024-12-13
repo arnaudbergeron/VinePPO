@@ -10,6 +10,7 @@ from datasets import (
 
 from treetune import logging_utils
 from treetune.common import Registrable
+import os
 
 logger = logging_utils.get_logger(__name__)
 

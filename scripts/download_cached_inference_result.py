@@ -60,7 +60,7 @@ def main():
     wandb_api = get_wandb_api()
 
     # Download the file from the run
-    wandb_run = wandb_api.run(f"{get_project_name()}/{run_id}")
+    wandb_run = wandb_api.run(f"VinePPO-src_treetune/{run_id}")
     files = list(wandb_run.files())
     files = [f for f in files if f.name == "inference_results.zip"]
     assert len(files) == 1

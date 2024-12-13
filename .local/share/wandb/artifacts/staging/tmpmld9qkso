@@ -1,0 +1,1041 @@
+{
+    "_version": "v0",
+    "source_type": "repo",
+    "source": {
+        "git": {
+            "remote": "https://github.com/arnaudbergeron/VinePPO.git",
+            "commit": "372f62b60c337ba06f28bffd5f9004512bbc66b7"
+        },
+        "entrypoint": [
+            "python",
+            "src/treetune/main.py"
+        ],
+        "notebook": false
+    },
+    "input_types": {
+        "wb_type": "typedDict",
+        "params": {
+            "type_map": {
+                "analyzers": {
+                    "wb_type": "list",
+                    "params": {
+                        "element_type": {
+                            "wb_type": "invalid"
+                        },
+                        "length": 3
+                    }
+                },
+                "episode_generator": {
+                    "wb_type": "typedDict",
+                    "params": {
+                        "type_map": {
+                            "answer_prefix": {
+                                "wb_type": "none"
+                            },
+                            "append_bos_to_query": {
+                                "wb_type": "boolean"
+                            },
+                            "append_eos_to_response": {
+                                "wb_type": "boolean"
+                            },
+                            "dataset_num_samples_per_iteration": {
+                                "wb_type": "number"
+                            },
+                            "dataset_sample_with_replacement": {
+                                "wb_type": "boolean"
+                            },
+                            "dataset_shuffle_before_portion": {
+                                "wb_type": "boolean"
+                            },
+                            "dataset_shuffle_on_each_iteration": {
+                                "wb_type": "boolean"
+                            },
+                            "fill_missing_episodes": {
+                                "wb_type": "boolean"
+                            },
+                            "inference_strategy": {
+                                "wb_type": "typedDict",
+                                "params": {
+                                    "type_map": {
+                                        "answer_extractor": {
+                                            "wb_type": "typedDict",
+                                            "params": {
+                                                "type_map": {
+                                                    "node_key_name": {
+                                                        "wb_type": "string"
+                                                    },
+                                                    "type": {
+                                                        "wb_type": "string"
+                                                    }
+                                                }
+                                            }
+                                        },
+                                        "guidance_llm": {
+                                            "wb_type": "typedDict",
+                                            "params": {
+                                                "type_map": {
+                                                    "api_base": {
+                                                        "wb_type": "string"
+                                                    },
+                                                    "api_key": {
+                                                        "wb_type": "string"
+                                                    },
+                                                    "caching": {
+                                                        "wb_type": "boolean"
+                                                    },
+                                                    "max_calls_per_min": {
+                                                        "wb_type": "number"
+                                                    },
+                                                    "max_retries": {
+                                                        "wb_type": "number"
+                                                    },
+                                                    "model": {
+                                                        "wb_type": "string"
+                                                    },
+                                                    "type": {
+                                                        "wb_type": "string"
+                                                    }
+                                                }
+                                            }
+                                        },
+                                        "max_concurrent_generations": {
+                                            "wb_type": "number"
+                                        },
+                                        "max_concurrent_programs": {
+                                            "wb_type": "number"
+                                        },
+                                        "max_depth": {
+                                            "wb_type": "number"
+                                        },
+                                        "no_cache": {
+                                            "wb_type": "boolean"
+                                        },
+                                        "node_expander": {
+                                            "wb_type": "typedDict",
+                                            "params": {
+                                                "type_map": {
+                                                    "model_context_size": {
+                                                        "wb_type": "number"
+                                                    },
+                                                    "node_text_template": {
+                                                        "wb_type": "string"
+                                                    },
+                                                    "program": {
+                                                        "wb_type": "string"
+                                                    },
+                                                    "program_kwargs": {
+                                                        "wb_type": "typedDict",
+                                                        "params": {
+                                                            "type_map": {
+                                                                "max_tokens": {
+                                                                    "wb_type": "number"
+                                                                },
+                                                                "stop": {
+                                                                    "wb_type": "string"
+                                                                },
+                                                                "temperature": {
+                                                                    "wb_type": "number"
+                                                                },
+                                                                "top_p": {
+                                                                    "wb_type": "number"
+                                                                }
+                                                            }
+                                                        }
+                                                    },
+                                                    "tokenizer": {
+                                                        "wb_type": "typedDict",
+                                                        "params": {
+                                                            "type_map": {
+                                                                "hf_model_name": {
+                                                                    "wb_type": "string"
+                                                                },
+                                                                "type": {
+                                                                    "wb_type": "string"
+                                                                }
+                                                            }
+                                                        }
+                                                    },
+                                                    "type": {
+                                                        "wb_type": "string"
+                                                    }
+                                                }
+                                            }
+                                        },
+                                        "question_field": {
+                                            "wb_type": "string"
+                                        },
+                                        "question_template": {
+                                            "wb_type": "string"
+                                        },
+                                        "samples": {
+                                            "wb_type": "number"
+                                        },
+                                        "type": {
+                                            "wb_type": "string"
+                                        }
+                                    }
+                                }
+                            },
+                            "initial_model_name_or_path": {
+                                "wb_type": "string"
+                            },
+                            "max_question_length": {
+                                "wb_type": "number"
+                            },
+                            "max_sequence_length": {
+                                "wb_type": "number"
+                            },
+                            "question_template": {
+                                "wb_type": "string"
+                            },
+                            "reasoning_step_delimiter": {
+                                "wb_type": "string"
+                            },
+                            "reward_function": {
+                                "wb_type": "typedDict",
+                                "params": {
+                                    "type_map": {
+                                        "math_task": {
+                                            "wb_type": "typedDict",
+                                            "params": {
+                                                "type_map": {
+                                                    "dataset_dict_path": {
+                                                        "wb_type": "string"
+                                                    },
+                                                    "load_dataset_dict": {
+                                                        "wb_type": "boolean"
+                                                    },
+                                                    "remove_calculator_expressions": {
+                                                        "wb_type": "boolean"
+                                                    },
+                                                    "type": {
+                                                        "wb_type": "string"
+                                                    },
+                                                    "use_original_format": {
+                                                        "wb_type": "boolean"
+                                                    }
+                                                }
+                                            }
+                                        },
+                                        "penalize_unfinished_response": {
+                                            "wb_type": "boolean"
+                                        },
+                                        "type": {
+                                            "wb_type": "string"
+                                        },
+                                        "unfinished_response_penalty": {
+                                            "wb_type": "number"
+                                        }
+                                    }
+                                }
+                            },
+                            "task": {
+                                "wb_type": "typedDict",
+                                "params": {
+                                    "type_map": {
+                                        "dataset_dict_path": {
+                                            "wb_type": "string"
+                                        },
+                                        "load_dataset_dict": {
+                                            "wb_type": "boolean"
+                                        },
+                                        "remove_calculator_expressions": {
+                                            "wb_type": "boolean"
+                                        },
+                                        "type": {
+                                            "wb_type": "string"
+                                        },
+                                        "use_original_format": {
+                                            "wb_type": "boolean"
+                                        }
+                                    }
+                                }
+                            },
+                            "total_num_iterations": {
+                                "wb_type": "number"
+                            },
+                            "type": {
+                                "wb_type": "string"
+                            },
+                            "vllm_gpu_memory_utilization": {
+                                "wb_type": "string"
+                            },
+                            "vllm_min_available_gpu_memory_mb": {
+                                "wb_type": "number"
+                            },
+                            "vllm_server": {
+                                "wb_type": "typedDict",
+                                "params": {
+                                    "type_map": {
+                                        "max_num_seqs": {
+                                            "wb_type": "number"
+                                        },
+                                        "swap_space": {
+                                            "wb_type": "number"
+                                        }
+                                    }
+                                }
+                            },
+                            "wait_until_memory_release": {
+                                "wb_type": "boolean"
+                            }
+                        }
+                    }
+                },
+                "episodes_cloud_log_steps": {
+                    "wb_type": "number"
+                },
+                "evaluation_vllm_server": {
+                    "wb_type": "typedDict",
+                    "params": {
+                        "type_map": {}
+                    }
+                },
+                "global_vars": {
+                    "wb_type": "typedDict",
+                    "params": {
+                        "type_map": {
+                            "debug_mode": {
+                                "wb_type": "boolean"
+                            },
+                            "dirs": {
+                                "wb_type": "typedDict",
+                                "params": {
+                                    "type_map": {
+                                        "data": {
+                                            "wb_type": "string"
+                                        },
+                                        "experiments": {
+                                            "wb_type": "string"
+                                        }
+                                    }
+                                }
+                            },
+                            "seed": {
+                                "wb_type": "number"
+                            }
+                        }
+                    }
+                },
+                "inference_pipelines": {
+                    "wb_type": "list",
+                    "params": {
+                        "element_type": {
+                            "wb_type": "invalid"
+                        },
+                        "length": 3
+                    }
+                },
+                "num_episodes_per_iteration": {
+                    "wb_type": "number"
+                },
+                "num_iterations": {
+                    "wb_type": "number"
+                },
+                "prompt_library": {
+                    "wb_type": "typedDict",
+                    "params": {
+                        "type_map": {
+                            "tree": {
+                                "wb_type": "typedDict",
+                                "params": {
+                                    "type_map": {
+                                        "expansion": {
+                                            "wb_type": "typedDict",
+                                            "params": {
+                                                "type_map": {
+                                                    "iid": {
+                                                        "wb_type": "string"
+                                                    }
+                                                }
+                                            }
+                                        },
+                                        "question_template": {
+                                            "wb_type": "string"
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                },
+                "tokenizer": {
+                    "wb_type": "typedDict",
+                    "params": {
+                        "type_map": {
+                            "hf_model_name": {
+                                "wb_type": "string"
+                            },
+                            "type": {
+                                "wb_type": "string"
+                            }
+                        }
+                    }
+                },
+                "trainer": {
+                    "wb_type": "typedDict",
+                    "params": {
+                        "type_map": {
+                            "actor_deepspeed_config": {
+                                "wb_type": "typedDict",
+                                "params": {
+                                    "type_map": {
+                                        "bf16": {
+                                            "wb_type": "typedDict",
+                                            "params": {
+                                                "type_map": {
+                                                    "enabled": {
+                                                        "wb_type": "string"
+                                                    }
+                                                }
+                                            }
+                                        },
+                                        "gradient_accumulation_steps": {
+                                            "wb_type": "string"
+                                        },
+                                        "gradient_clipping": {
+                                            "wb_type": "string"
+                                        },
+                                        "optimizer": {
+                                            "wb_type": "typedDict",
+                                            "params": {
+                                                "type_map": {
+                                                    "params": {
+                                                        "wb_type": "typedDict",
+                                                        "params": {
+                                                            "type_map": {
+                                                                "betas": {
+                                                                    "wb_type": "string"
+                                                                },
+                                                                "eps": {
+                                                                    "wb_type": "string"
+                                                                },
+                                                                "lr": {
+                                                                    "wb_type": "string"
+                                                                },
+                                                                "weight_decay": {
+                                                                    "wb_type": "string"
+                                                                }
+                                                            }
+                                                        }
+                                                    },
+                                                    "type": {
+                                                        "wb_type": "string"
+                                                    }
+                                                }
+                                            }
+                                        },
+                                        "scheduler": {
+                                            "wb_type": "typedDict",
+                                            "params": {
+                                                "type_map": {
+                                                    "params": {
+                                                        "wb_type": "typedDict",
+                                                        "params": {
+                                                            "type_map": {
+                                                                "last_batch_iteration": {
+                                                                    "wb_type": "number"
+                                                                },
+                                                                "total_num_steps": {
+                                                                    "wb_type": "string"
+                                                                },
+                                                                "warmup_max_lr": {
+                                                                    "wb_type": "string"
+                                                                },
+                                                                "warmup_min_lr": {
+                                                                    "wb_type": "string"
+                                                                },
+                                                                "warmup_num_steps": {
+                                                                    "wb_type": "string"
+                                                                }
+                                                            }
+                                                        }
+                                                    },
+                                                    "type": {
+                                                        "wb_type": "string"
+                                                    }
+                                                }
+                                            }
+                                        },
+                                        "train_batch_size": {
+                                            "wb_type": "string"
+                                        },
+                                        "train_micro_batch_size_per_gpu": {
+                                            "wb_type": "string"
+                                        },
+                                        "zero_allow_untested_optimizer": {
+                                            "wb_type": "boolean"
+                                        },
+                                        "zero_optimization": {
+                                            "wb_type": "typedDict",
+                                            "params": {
+                                                "type_map": {
+                                                    "allgather_bucket_size": {
+                                                        "wb_type": "number"
+                                                    },
+                                                    "allgather_partitions": {
+                                                        "wb_type": "boolean"
+                                                    },
+                                                    "contiguous_gradients": {
+                                                        "wb_type": "boolean"
+                                                    },
+                                                    "overlap_comm": {
+                                                        "wb_type": "boolean"
+                                                    },
+                                                    "reduce_bucket_size": {
+                                                        "wb_type": "string"
+                                                    },
+                                                    "reduce_scatter": {
+                                                        "wb_type": "boolean"
+                                                    },
+                                                    "stage": {
+                                                        "wb_type": "number"
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            },
+                            "actor_model": {
+                                "wb_type": "typedDict",
+                                "params": {
+                                    "type_map": {
+                                        "disable_dropout": {
+                                            "wb_type": "boolean"
+                                        },
+                                        "hf_model_name": {
+                                            "wb_type": "string"
+                                        },
+                                        "pretrained_args": {
+                                            "wb_type": "typedDict",
+                                            "params": {
+                                                "type_map": {
+                                                    "use_flash_attention_2": {
+                                                        "wb_type": "boolean"
+                                                    }
+                                                }
+                                            }
+                                        },
+                                        "type": {
+                                            "wb_type": "string"
+                                        }
+                                    }
+                                }
+                            },
+                            "cache_deepspeed_engines": {
+                                "wb_type": "boolean"
+                            },
+                            "critic_ckpt_path": {
+                                "wb_type": "string"
+                            },
+                            "critic_deepspeed_config": {
+                                "wb_type": "typedDict",
+                                "params": {
+                                    "type_map": {
+                                        "bf16": {
+                                            "wb_type": "typedDict",
+                                            "params": {
+                                                "type_map": {
+                                                    "enabled": {
+                                                        "wb_type": "string"
+                                                    }
+                                                }
+                                            }
+                                        },
+                                        "gradient_accumulation_steps": {
+                                            "wb_type": "string"
+                                        },
+                                        "gradient_clipping": {
+                                            "wb_type": "string"
+                                        },
+                                        "optimizer": {
+                                            "wb_type": "typedDict",
+                                            "params": {
+                                                "type_map": {
+                                                    "params": {
+                                                        "wb_type": "typedDict",
+                                                        "params": {
+                                                            "type_map": {
+                                                                "betas": {
+                                                                    "wb_type": "string"
+                                                                },
+                                                                "eps": {
+                                                                    "wb_type": "string"
+                                                                },
+                                                                "lr": {
+                                                                    "wb_type": "string"
+                                                                },
+                                                                "weight_decay": {
+                                                                    "wb_type": "string"
+                                                                }
+                                                            }
+                                                        }
+                                                    },
+                                                    "type": {
+                                                        "wb_type": "string"
+                                                    }
+                                                }
+                                            }
+                                        },
+                                        "scheduler": {
+                                            "wb_type": "typedDict",
+                                            "params": {
+                                                "type_map": {
+                                                    "params": {
+                                                        "wb_type": "typedDict",
+                                                        "params": {
+                                                            "type_map": {
+                                                                "last_batch_iteration": {
+                                                                    "wb_type": "number"
+                                                                },
+                                                                "total_num_steps": {
+                                                                    "wb_type": "string"
+                                                                },
+                                                                "warmup_max_lr": {
+                                                                    "wb_type": "string"
+                                                                },
+                                                                "warmup_min_lr": {
+                                                                    "wb_type": "string"
+                                                                },
+                                                                "warmup_num_steps": {
+                                                                    "wb_type": "string"
+                                                                }
+                                                            }
+                                                        }
+                                                    },
+                                                    "type": {
+                                                        "wb_type": "string"
+                                                    }
+                                                }
+                                            }
+                                        },
+                                        "train_batch_size": {
+                                            "wb_type": "string"
+                                        },
+                                        "train_micro_batch_size_per_gpu": {
+                                            "wb_type": "string"
+                                        },
+                                        "zero_allow_untested_optimizer": {
+                                            "wb_type": "boolean"
+                                        },
+                                        "zero_optimization": {
+                                            "wb_type": "typedDict",
+                                            "params": {
+                                                "type_map": {
+                                                    "allgather_bucket_size": {
+                                                        "wb_type": "number"
+                                                    },
+                                                    "allgather_partitions": {
+                                                        "wb_type": "boolean"
+                                                    },
+                                                    "contiguous_gradients": {
+                                                        "wb_type": "boolean"
+                                                    },
+                                                    "overlap_comm": {
+                                                        "wb_type": "boolean"
+                                                    },
+                                                    "reduce_bucket_size": {
+                                                        "wb_type": "string"
+                                                    },
+                                                    "reduce_scatter": {
+                                                        "wb_type": "boolean"
+                                                    },
+                                                    "stage": {
+                                                        "wb_type": "number"
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            },
+                            "critic_model": {
+                                "wb_type": "typedDict",
+                                "params": {
+                                    "type_map": {
+                                        "pretrained_backbone_model": {
+                                            "wb_type": "typedDict",
+                                            "params": {
+                                                "type_map": {
+                                                    "disable_dropout": {
+                                                        "wb_type": "boolean"
+                                                    },
+                                                    "hf_model_name": {
+                                                        "wb_type": "string"
+                                                    },
+                                                    "pretrained_args": {
+                                                        "wb_type": "typedDict",
+                                                        "params": {
+                                                            "type_map": {
+                                                                "use_flash_attention_2": {
+                                                                    "wb_type": "boolean"
+                                                                }
+                                                            }
+                                                        }
+                                                    },
+                                                    "type": {
+                                                        "wb_type": "string"
+                                                    }
+                                                }
+                                            }
+                                        },
+                                        "type": {
+                                            "wb_type": "string"
+                                        }
+                                    }
+                                }
+                            },
+                            "disable_critic_training": {
+                                "wb_type": "boolean"
+                            },
+                            "general_training_args": {
+                                "wb_type": "typedDict",
+                                "params": {
+                                    "type_map": {
+                                        "bf16": {
+                                            "wb_type": "boolean"
+                                        },
+                                        "checkpoint_keep_steps": {
+                                            "wb_type": "number"
+                                        },
+                                        "dataloader_num_workers": {
+                                            "wb_type": "number"
+                                        },
+                                        "dataloader_pin_memory": {
+                                            "wb_type": "boolean"
+                                        },
+                                        "gradient_accumulation_steps": {
+                                            "wb_type": "number"
+                                        },
+                                        "gradient_checkpointing": {
+                                            "wb_type": "boolean"
+                                        },
+                                        "learning_rate": {
+                                            "wb_type": "number"
+                                        },
+                                        "logging_steps": {
+                                            "wb_type": "number"
+                                        },
+                                        "max_grad_norm": {
+                                            "wb_type": "number"
+                                        },
+                                        "per_device_train_batch_size": {
+                                            "wb_type": "none"
+                                        },
+                                        "save_steps": {
+                                            "wb_type": "number"
+                                        },
+                                        "seed": {
+                                            "wb_type": "number"
+                                        },
+                                        "target_train_batch_size": {
+                                            "wb_type": "number"
+                                        },
+                                        "warmup_ratio": {
+                                            "wb_type": "number"
+                                        },
+                                        "weight_decay": {
+                                            "wb_type": "number"
+                                        }
+                                    }
+                                }
+                            },
+                            "move_reference_model_to_cpu": {
+                                "wb_type": "boolean"
+                            },
+                            "num_epochs_per_iteration": {
+                                "wb_type": "number"
+                            },
+                            "params": {
+                                "wb_type": "typedDict",
+                                "params": {
+                                    "type_map": {
+                                        "adap_kl_ctrl": {
+                                            "wb_type": "boolean"
+                                        },
+                                        "cliprange": {
+                                            "wb_type": "number"
+                                        },
+                                        "cliprange_value": {
+                                            "wb_type": "number"
+                                        },
+                                        "gamma": {
+                                            "wb_type": "number"
+                                        },
+                                        "init_kl_coef": {
+                                            "wb_type": "number"
+                                        },
+                                        "kl_penalty_loss_clip_max": {
+                                            "wb_type": "number"
+                                        },
+                                        "kl_penalty_loss_clip_min": {
+                                            "wb_type": "number"
+                                        },
+                                        "kl_penalty_loss_type": {
+                                            "wb_type": "string"
+                                        },
+                                        "lam": {
+                                            "wb_type": "number"
+                                        },
+                                        "negative_loss_method": {
+                                            "wb_type": "string"
+                                        },
+                                        "positive_loss_method": {
+                                            "wb_type": "string"
+                                        },
+                                        "sppo_clamp_value_high": {
+                                            "wb_type": "number"
+                                        },
+                                        "temperature": {
+                                            "wb_type": "number"
+                                        },
+                                        "use_score_norm": {
+                                            "wb_type": "boolean"
+                                        },
+                                        "use_score_scaling": {
+                                            "wb_type": "boolean"
+                                        },
+                                        "whiten_advantages": {
+                                            "wb_type": "boolean"
+                                        },
+                                        "whiten_rewards": {
+                                            "wb_type": "boolean"
+                                        }
+                                    }
+                                }
+                            },
+                            "reference_deepspeed_config": {
+                                "wb_type": "typedDict",
+                                "params": {
+                                    "type_map": {
+                                        "bf16": {
+                                            "wb_type": "typedDict",
+                                            "params": {
+                                                "type_map": {
+                                                    "enabled": {
+                                                        "wb_type": "boolean"
+                                                    }
+                                                }
+                                            }
+                                        },
+                                        "gradient_accumulation_steps": {
+                                            "wb_type": "string"
+                                        },
+                                        "prescale_gradients": {
+                                            "wb_type": "boolean"
+                                        },
+                                        "train_batch_size": {
+                                            "wb_type": "string"
+                                        },
+                                        "train_micro_batch_size_per_gpu": {
+                                            "wb_type": "string"
+                                        },
+                                        "wall_clock_breakdown": {
+                                            "wb_type": "boolean"
+                                        }
+                                    }
+                                }
+                            },
+                            "reference_model": {
+                                "wb_type": "typedDict",
+                                "params": {
+                                    "type_map": {
+                                        "hf_model_name": {
+                                            "wb_type": "string"
+                                        },
+                                        "pretrained_args": {
+                                            "wb_type": "typedDict",
+                                            "params": {
+                                                "type_map": {
+                                                    "use_flash_attention_2": {
+                                                        "wb_type": "boolean"
+                                                    }
+                                                }
+                                            }
+                                        },
+                                        "type": {
+                                            "wb_type": "string"
+                                        }
+                                    }
+                                }
+                            },
+                            "report_entropy": {
+                                "wb_type": "boolean"
+                            },
+                            "save_hf_critic_checkpoint": {
+                                "wb_type": "boolean"
+                            },
+                            "type": {
+                                "wb_type": "string"
+                            }
+                        }
+                    }
+                },
+                "type": {
+                    "wb_type": "string"
+                },
+                "use_deepspeed": {
+                    "wb_type": "boolean"
+                },
+                "directory": {
+                    "wb_type": "string"
+                },
+                "exp_name": {
+                    "wb_type": "string"
+                }
+            }
+        }
+    },
+    "output_types": {
+        "wb_type": "typedDict",
+        "params": {
+            "type_map": {
+                "timing/total/init_policy_iteration": {
+                    "wb_type": "number"
+                },
+                "_timestamp": {
+                    "wb_type": "number"
+                },
+                "_runtime": {
+                    "wb_type": "number"
+                },
+                "_step": {
+                    "wb_type": "number"
+                },
+                "timing/episode_generation/vllm_start": {
+                    "wb_type": "number"
+                },
+                "episodes_metric/parse_failed": {
+                    "wb_type": "number"
+                },
+                "episodes_metric/empty_response": {
+                    "wb_type": "number"
+                },
+                "episodes_metric/is_unfinished_response": {
+                    "wb_type": "number"
+                },
+                "episodes_metric/once_hit": {
+                    "wb_type": "number"
+                },
+                "episodes_metric/num_unique_responses": {
+                    "wb_type": "list",
+                    "params": {
+                        "element_type": {
+                            "wb_type": "number"
+                        },
+                        "length": 16
+                    }
+                },
+                "episodes_metric/trajectory_bleu": {
+                    "wb_type": "number"
+                },
+                "episodes_metric/num_reasoning_steps/dist": {
+                    "wb_type": "typedDict",
+                    "params": {
+                        "type_map": {
+                            "_type": {
+                                "wb_type": "string"
+                            },
+                            "values": {
+                                "wb_type": "list",
+                                "params": {
+                                    "element_type": {
+                                        "wb_type": "number"
+                                    },
+                                    "length": 32
+                                }
+                            },
+                            "bins": {
+                                "wb_type": "list",
+                                "params": {
+                                    "element_type": {
+                                        "wb_type": "number"
+                                    },
+                                    "length": 33
+                                }
+                            }
+                        }
+                    }
+                },
+                "episodes_metric/num_reasoning_steps/mean": {
+                    "wb_type": "number"
+                },
+                "train/global_iteration": {
+                    "wb_type": "number"
+                },
+                "timing/episode_generation/inference": {
+                    "wb_type": "number"
+                },
+                "timing/episode_generation/inferResult_to_episodes": {
+                    "wb_type": "number"
+                },
+                "vllm_stats/avg_generation_throughput": {
+                    "wb_type": "number"
+                },
+                "vllm_stats/avg_running_reqs": {
+                    "wb_type": "number"
+                },
+                "vllm_stats/avg_pending_reqs": {
+                    "wb_type": "number"
+                },
+                "vllm_stats/avg_gpu_kv_cache_usage": {
+                    "wb_type": "number"
+                },
+                "vllm_stats/avg_cpu_kv_cache_usage": {
+                    "wb_type": "number"
+                },
+                "vllm_stats/total_approx_generation_throughput": {
+                    "wb_type": "number"
+                },
+                "episodes/iteration_0000": {
+                    "wb_type": "typedDict",
+                    "params": {
+                        "type_map": {
+                            "_type": {
+                                "wb_type": "string"
+                            },
+                            "sha256": {
+                                "wb_type": "string"
+                            },
+                            "size": {
+                                "wb_type": "number"
+                            },
+                            "artifact_path": {
+                                "wb_type": "string"
+                            },
+                            "_latest_artifact_path": {
+                                "wb_type": "string"
+                            },
+                            "path": {
+                                "wb_type": "string"
+                            },
+                            "ncols": {
+                                "wb_type": "number"
+                            },
+                            "nrows": {
+                                "wb_type": "number"
+                            }
+                        }
+                    }
+                },
+                "timing/total/episode_generation": {
+                    "wb_type": "number"
+                },
+                "timing/train/computing_ref_logprobs": {
+                    "wb_type": "number"
+                },
+                "train/global_step": {
+                    "wb_type": "number"
+                },
+                "timing/actor/construct": {
+                    "wb_type": "number"
+                },
+                "timing/actor/deepspeed_init": {
+                    "wb_type": "number"
+                }
+            }
+        }
+    },
+    "runtime": "3.10.13"
+}

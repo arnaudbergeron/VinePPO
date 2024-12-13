@@ -90,7 +90,7 @@ local sampling_temperature = 0.6;
 
     trainer+: {
         params+: { temperature: $.episode_generator.inference_strategy.node_expander.program_kwargs.temperature },
-
+        // temp_checkpoint_dir: '/network/scratch/a/arnaud.bergeron1/rlhf/temp_checkpoints',
         actor_model+: { hf_model_name: $.episode_generator.initial_model_name_or_path },
         critic_model+: { pretrained_backbone_model+: { hf_model_name: $.episode_generator.initial_model_name_or_path } },
         reference_model+: { hf_model_name: $.episode_generator.initial_model_name_or_path },
