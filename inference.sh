@@ -16,4 +16,4 @@ singularity exec --nv \
 	-H "/network/scratch/a/arnaud.bergeron1/vine_run_sing" \
 	-B "/network/scratch/a/arnaud.bergeron1/vine_run_sing" \
 	treetune_v15.sif \
-	./run_inference.sh full_ppo_vine_fix8 mixed_rewards_freeze/full_ppo.jsonnet
+	./run_inference.sh mixed_rewards_vine_fix8 mixed_rewards_vine/mixed_rewards.jsonnet

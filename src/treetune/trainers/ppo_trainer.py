@@ -824,6 +824,7 @@ class PPOTrainer(DeepSpeedPolicyTrainer):
             advantages=advantages,
         )
         actor.backward(actor_loss)
+        print("actor_loss: ", actor_loss)
         self._check_overflow(actor)
         actor.step()
         # Get rid of actor's activations to free up memory
@@ -943,6 +944,16 @@ class PPOTrainer(DeepSpeedPolicyTrainer):
         logprobs = outputs["all_logps"]  # Shape: (batch_size, seq_len-1)
         assert logprobs.shape == old_logprobs.shape
         assert action_mask.shape == logprobs.shape
+
+        if self.ppo_hparams.scale_sign_equal:
+            positive_advantages = (advantages > 0).float()
+            negative_advantages = (advantages < 0).float()
+            pos_adv_mean = torch.mean(advantages[positive_advantages.bool()])
+            neg_adv_mean = torch.mean(advantages[negative_advantages.bool()])
+            pos_negative_diff = pos_adv_mean + neg_adv_mean
+            if pos_negative_diff.isnan().any().item():
+                pos_negative_diff = 0.0
+            advantages[positive_advantages.bool()] = advantages[positive_advantages.bool()] - (pos_negative_diff) + 1e-2
 
         # Compute the PPO-clip loss
         log_ratio = (logprobs - old_logprobs) * action_mask
@@ -1168,10 +1179,6 @@ class PPOTrainer(DeepSpeedPolicyTrainer):
         positive_advantages = (advantages > 0).float()
         negative_advantages = (advantages < 0).float()
 
-        pos_adv_mean = torch.mean(advantages[positive_advantages.bool()])
-        neg_adv_mean = torch.mean(advantages[negative_advantages.bool()])
-
-        pos_negative_ratio = torch.abs(pos_adv_mean / neg_adv_mean)
 
         ppo_mask = torch.zeros_like(advantages)
         sppo_mask = torch.zeros_like(advantages)
@@ -1210,9 +1217,7 @@ class PPOTrainer(DeepSpeedPolicyTrainer):
     
         loss = ppo_lr * ppo_loss * ppo_mask + sppo_lr * sppo_loss * sppo_mask
 
-        if self.ppo_hparams.scale_sign_equal:
-            pos_negative_ratio = torch.clamp(pos_negative_ratio, 0.1, 5)
-            loss[positive_advantages.bool()] = loss[positive_advantages.bool()] / (pos_negative_ratio)
+        
 
         return loss, ppo_mask.float(), sppo_mask.float()
 

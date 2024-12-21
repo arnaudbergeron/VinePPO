@@ -395,7 +395,7 @@ class PolicyIterationRuntime(DistributedRuntime):
             shutil.rmtree(vllm_ckpt_dir)
 
         # Also, run the analyzers if any
-        # self._run_analyzers(every_n_checkpoints, force_rerun)
+        self._run_analyzers(every_n_checkpoints, force_rerun)
 
         # Mark the evaluation as done only if all checkpoints are done
         # The launcher infrastructure uses this to determine if evaluation is needed to be launched

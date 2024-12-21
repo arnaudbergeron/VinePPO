@@ -10,6 +10,6 @@ export XDG_CACHE_HOME="experiments/$1"
 NUM_GPUS=$(nvidia-smi --query-gpu=name --format=csv,noheader | wc -l)
 
 # Run the training
-deepspeed --no_local_rank --num_gpus=1   \
+deepspeed --no_local_rank --num_gpus=1 --master_port=1920  \
          src/treetune/main.py --configs "$CONFIGSTR" \
-         --master_port=2920 run_evaluation
+          run_evaluation

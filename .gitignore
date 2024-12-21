@@ -16,7 +16,10 @@ build/
 develop-eggs/
 dist/
 downloads/
+hub/
 eggs/
+metrics/
+modules/
 .eggs/
 lib/
 lib64/
@@ -287,3 +290,5 @@ job_error.txt
 job_output.txt
 treetune_v15.sif
 vllm_hf_folder_cache.json
+.local/
+.triton
