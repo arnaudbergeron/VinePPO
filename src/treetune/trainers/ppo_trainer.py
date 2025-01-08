@@ -147,6 +147,8 @@ class PPOHParams:
     clip_sppo_low: bool = True
     use_value_clip: bool = True
     scale_sign_equal: bool = True
+    relative_lr_positive: float = 1.0
+    relative_lr_negative: float = 1.0
 
     def __post_init__(self):
         assert self.temperature > 0, "Temperature should be positive."
@@ -945,15 +947,27 @@ class PPOTrainer(DeepSpeedPolicyTrainer):
         assert logprobs.shape == old_logprobs.shape
         assert action_mask.shape == logprobs.shape
 
-        if self.ppo_hparams.scale_sign_equal:
-            positive_advantages = (advantages > 0).float()
-            negative_advantages = (advantages < 0).float()
-            pos_adv_mean = torch.mean(advantages[positive_advantages.bool()])
-            neg_adv_mean = torch.mean(advantages[negative_advantages.bool()])
-            pos_negative_diff = pos_adv_mean + neg_adv_mean
-            if pos_negative_diff.isnan().any().item():
-                pos_negative_diff = 0.0
-            advantages[positive_advantages.bool()] = advantages[positive_advantages.bool()] - (pos_negative_diff) + 1e-2
+        # if self.ppo_hparams.scale_sign_equal:
+        #     positive_advantages = (advantages > 0).float()
+        #     negative_advantages = (advantages < 0).float()
+        #     pos_adv_mean = torch.mean(advantages[positive_advantages.bool()])
+        #     neg_adv_mean = torch.mean(advantages[negative_advantages.bool()])
+        #     pos_negative_diff = pos_adv_mean + neg_adv_mean
+
+            # if neg_adv_mean.abs() < 0.05:
+            #     pos_negative_diff = 0.0
+
+            # elif pos_negative_diff.isnan().any().item():
+            #     pos_negative_diff = 0.0
+
+            # advantages[positive_advantages.bool()] = advantages[positive_advantages.bool()] - (pos_negative_diff) + 1e-2
+            # pos_negative_ratio = torch.abs(pos_adv_mean / neg_adv_mean)
+            # if pos_negative_ratio.isnan().any().item():
+            #     pos_negative_ratio = 1.0
+            # else:
+            #     pos_negative_ratio = torch.clamp(pos_negative_ratio, 0.2, 5)
+            # advantages[positive_advantages.bool()] = advantages[positive_advantages.bool()] / (pos_negative_ratio)
+
 
         # Compute the PPO-clip loss
         log_ratio = (logprobs - old_logprobs) * action_mask
@@ -1214,10 +1228,13 @@ class PPOTrainer(DeepSpeedPolicyTrainer):
 
         ppo_lr = self.ppo_hparams.relative_lr_ppo
         sppo_lr = self.ppo_hparams.relative_lr_sppo 
-    
-        loss = ppo_lr * ppo_loss * ppo_mask + sppo_lr * sppo_loss * sppo_mask
 
-        
+        positive_lr = self.ppo_hparams.relative_lr_positive
+        negative_lr = self.ppo_hparams.relative_lr_negative
+
+        loss = ppo_lr * ppo_loss * ppo_mask + sppo_lr * sppo_loss * sppo_mask
+        loss[positive_advantages.bool()] *= positive_lr
+        loss[negative_advantages.bool()] *= negative_lr
 
         return loss, ppo_mask.float(), sppo_mask.float()
 

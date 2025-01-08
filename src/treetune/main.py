@@ -95,7 +95,7 @@ class EntryPoint(object):
         orig_directory = config.get("directory", "experiments")
         scratch_directory = os.environ.get("SCRATCH")
         wandb_run_id = os.environ.get("WANDB_RUN_ID")
-        config["directory"] = f"{scratch_directory}/vine_run_sing/experiments/{wandb_run_id}"
+        config["directory"] = f"{scratch_directory}/VinePPO/experiments/{wandb_run_id}"
 
         return config
 
