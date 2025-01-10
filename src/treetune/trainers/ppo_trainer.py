@@ -995,29 +995,33 @@ class PPOTrainer(DeepSpeedPolicyTrainer):
         high_clip_mask_ppo = ratio > ppo_high_clip
         clip_mask_ppo = low_clip_mask_ppo | high_clip_mask_ppo
 
-        clipped_ratios_ppo = torch.where(low_clip_mask_ppo, ppo_low_clip, ratio)
-        clipped_ratios_ppo = torch.where(high_clip_mask_ppo, ppo_high_clip, clipped_ratios_ppo)
+        loss_low_clip_ppo = -advantages * ppo_low_clip * log_ratio
+        loss_high_clip_ppo = -advantages * ppo_high_clip * log_ratio
+        loss_no_clip_ppo = pg_losses1
+    
+        loss_ppo = torch.where(low_clip_mask_ppo, loss_low_clip_ppo, loss_no_clip_ppo)
+        loss_ppo = torch.where(high_clip_mask_ppo, loss_high_clip_ppo, loss_ppo)
 
-
-        pg_losses = -advantages * clipped_ratios_ppo.detach() * log_ratio
+        pg_losses = loss_ppo
 
         if self.ppo_hparams.is_mixed_rewards:
-            log_ratio_sppo = (old_logprobs - logprobs) * action_mask
-            ratio_sppo = torch.exp(log_ratio_sppo)
+            sppo_loss = -advantages * log_ratio * action_mask
 
-            sppo_loss = -advantages * log_ratio_sppo * action_mask
+            log_ratio_sppo = (old_logprobs-logprobs) * action_mask
+            ratio_sppo = torch.exp(log_ratio_sppo)
             if self.ppo_hparams.sppo_clamp_value_low is not None or self.ppo_hparams.sppo_clamp_value_high is not None:
                 low_clip_sppo = self.ppo_hparams.sppo_clamp_value_low
                 high_clip_sppo = self.ppo_hparams.sppo_clamp_value_high
                 
-                low_clip_mask_sppo = log_ratio_sppo < low_clip_sppo
-                high_clip_mask_sppo = log_ratio_sppo > high_clip_sppo
+                low_clip_mask_sppo = ratio_sppo < low_clip_sppo
+                high_clip_mask_sppo = ratio_sppo > high_clip_sppo
                 clip_mask_sppo = low_clip_mask_sppo | high_clip_mask_sppo
 
-                clipped_ratios_sppo = torch.where(low_clip_mask_sppo, low_clip_sppo, ratio_sppo)
-                clipped_ratios_sppo = torch.where(high_clip_mask_sppo, high_clip_sppo, clipped_ratios_sppo)
+                loss_low_clip_sppo = -advantages * low_clip_sppo * log_ratio_sppo
+                loss_high_clip_sppo = -advantages * high_clip_sppo * log_ratio_sppo
 
-                sppo_loss = -advantages * clipped_ratios_sppo.detach() * log_ratio_sppo
+                sppo_loss = torch.where(low_clip_mask_sppo, loss_low_clip_sppo, sppo_loss)
+                sppo_loss = torch.where(high_clip_mask_sppo, loss_high_clip_sppo, sppo_loss)
 
             tot_loss, ppo_mask, sppo_mask  = self._get_loss(advantages=advantages, ppo_loss=pg_losses, sppo_loss=sppo_loss)
 
