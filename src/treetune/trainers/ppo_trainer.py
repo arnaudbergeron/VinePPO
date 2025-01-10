@@ -143,6 +143,8 @@ class PPOHParams:
     curvature_adj: bool = False
     sppo_clamp_value_low: float = None
     sppo_clamp_value_high: float = None
+    ppo_clamp_value_low: float = None
+    ppo_clamp_value_high: float = None
     clip_sppo_high: bool = True
     clip_sppo_low: bool = True
     use_value_clip: bool = True
@@ -980,40 +982,42 @@ class PPOTrainer(DeepSpeedPolicyTrainer):
             )
 
         if self.ppo_hparams.clip_sppo_low:
-            ppo_low_clip = 1.0 - self.ppo_hparams.cliprange
+            ppo_low_clip = self.ppo_hparams.ppo_clamp_value_low
         else:
             ppo_low_clip = None
         
         if self.ppo_hparams.clip_sppo_high:
-            ppo_high_clip = 1.0 + self.ppo_hparams.cliprange
+            ppo_high_clip = self.ppo_hparams.ppo_clamp_value_high
         else:
             ppo_high_clip = None
 
-        clipped_ratios = torch.clamp(
-            ratio, ppo_low_clip, ppo_high_clip
-        )
+        low_clip_mask_ppo = ratio < ppo_low_clip
+        high_clip_mask_ppo = ratio > ppo_high_clip
+        clip_mask_ppo = low_clip_mask_ppo | high_clip_mask_ppo
 
-        pg_losses2 = -advantages * clipped_ratios
-        pg_losses = torch.max(pg_losses1, pg_losses2)
+        clipped_ratios_ppo = torch.where(low_clip_mask_ppo, ppo_low_clip, ratio)
+        clipped_ratios_ppo = torch.where(high_clip_mask_ppo, ppo_high_clip, clipped_ratios_ppo)
+
+
+        pg_losses = -advantages * clipped_ratios_ppo.detach() * log_ratio
 
         if self.ppo_hparams.is_mixed_rewards:
-            log_ratio_sppo = (logprobs - old_logprobs)
+            log_ratio_sppo = (old_logprobs - logprobs) * action_mask
+            ratio_sppo = torch.exp(log_ratio_sppo)
 
             sppo_loss = -advantages * log_ratio_sppo * action_mask
             if self.ppo_hparams.sppo_clamp_value_low is not None or self.ppo_hparams.sppo_clamp_value_high is not None:
-                low_clip_sppo = 1.0 - self.ppo_hparams.sppo_clamp_value_low if self.ppo_hparams.sppo_clamp_value_low is not None else None
-                high_clip_sppo = 1.0 + self.ppo_hparams.sppo_clamp_value_high if self.ppo_hparams.sppo_clamp_value_high is not None else None
+                low_clip_sppo = self.ppo_hparams.sppo_clamp_value_low
+                high_clip_sppo = self.ppo_hparams.sppo_clamp_value_high
                 
-                clipped_ratios_sppo = torch.clamp(
-                    ratio, low_clip_sppo, high_clip_sppo
-                )
+                low_clip_mask_sppo = log_ratio_sppo < low_clip_sppo
+                high_clip_mask_sppo = log_ratio_sppo > high_clip_sppo
+                clip_mask_sppo = low_clip_mask_sppo | high_clip_mask_sppo
 
-                clipped_log_ratios = torch.log(clipped_ratios_sppo)
-                sppo_loss_2 = -advantages * clipped_log_ratios * action_mask
-                sppo_loss = torch.max(sppo_loss, sppo_loss_2) 
+                clipped_ratios_sppo = torch.where(low_clip_mask_sppo, low_clip_sppo, ratio_sppo)
+                clipped_ratios_sppo = torch.where(high_clip_mask_sppo, high_clip_sppo, clipped_ratios_sppo)
 
-            if self.ppo_hparams.curvature_adj:
-                sppo_loss = sppo_loss * (ratio)
+                sppo_loss = -advantages * clipped_ratios_sppo.detach() * log_ratio_sppo
 
             tot_loss, ppo_mask, sppo_mask  = self._get_loss(advantages=advantages, ppo_loss=pg_losses, sppo_loss=sppo_loss)
 
@@ -1052,15 +1056,15 @@ class PPOTrainer(DeepSpeedPolicyTrainer):
             is_skipped = True
 
         pg_clip_frac = masked_mean(
-            torch.gt(pg_losses2, pg_losses1).float(), ppo_mask
+            clip_mask_ppo, ppo_mask
         )
 
         if self.ppo_hparams.is_mixed_rewards:
             pg_clip_sppo = masked_mean(
-                torch.gt(pg_losses2, pg_losses1).float(), sppo_mask
+                clip_mask_sppo, sppo_mask
             )
             sppo_anomalies = monitor_tensor_anomalies(
-                pg_losses2.detach(), sppo_mask.bool()
+                sppo_loss.detach(), sppo_mask.bool()
             )
 
         approx_kl = 0.5 * masked_mean((logprobs - old_logprobs) ** 2, action_mask)

@@ -400,11 +400,11 @@ class PolicyIterationRuntime(DistributedRuntime):
         # Mark the evaluation as done only if all checkpoints are done
         # The launcher infrastructure uses this to determine if evaluation is needed to be launched
         is_training_finished = (checkpoint_dir / "final").exists()
-        if not is_training_finished:
-            logger.info(
-                "Skipping marking evaluation as done because training is not finished"
-            )
-            return
+        # if not is_training_finished:
+        #     logger.info(
+        #         "Skipping marking evaluation as done because training is not finished"
+        #     )
+        #     return
 
         all_eval_ckpts = self._get_list_of_evaluation_checkpoints(
             checkpoint_dir, every_n_checkpoints, ignore_worker_vars=True

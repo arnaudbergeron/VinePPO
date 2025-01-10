@@ -265,8 +265,8 @@ class OnPolicyEpisodeGenerator(EpisodeGenerator):
                 or self.dataset_shuffle_before_portion
             )
             if do_shuffle:
-                self.distributed_state.wait_for_everyone()
                 dataset = dataset.shuffle(seed=self.seed + iteration)
+                self.distributed_state.wait_for_everyone()
 
             dataset = dataset.select(range(num_samples))
 
