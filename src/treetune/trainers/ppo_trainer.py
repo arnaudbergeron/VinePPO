@@ -1005,9 +1005,11 @@ class PPOTrainer(DeepSpeedPolicyTrainer):
         pg_losses = loss_ppo
 
         if self.ppo_hparams.is_mixed_rewards:
-            sppo_loss = -advantages * log_ratio * action_mask
+            # sppo_loss = -advantages * log_ratio * action_mask
+            ppo_loss = -advantages * ratio * action_mask
 
-            log_ratio_sppo = (old_logprobs-logprobs) * action_mask
+
+            log_ratio_sppo = (logprobs-old_logprobs) * action_mask
             ratio_sppo = torch.exp(log_ratio_sppo)
             if self.ppo_hparams.sppo_clamp_value_low is not None or self.ppo_hparams.sppo_clamp_value_high is not None:
                 low_clip_sppo = self.ppo_hparams.sppo_clamp_value_low
@@ -1020,7 +1022,7 @@ class PPOTrainer(DeepSpeedPolicyTrainer):
                 loss_low_clip_sppo = -advantages * low_clip_sppo * log_ratio_sppo
                 loss_high_clip_sppo = -advantages * high_clip_sppo * log_ratio_sppo
 
-                sppo_loss = torch.where(low_clip_mask_sppo, loss_low_clip_sppo, sppo_loss)
+                sppo_loss = torch.where(low_clip_mask_sppo, loss_low_clip_sppo, ppo_loss)
                 sppo_loss = torch.where(high_clip_mask_sppo, loss_high_clip_sppo, sppo_loss)
 
             tot_loss, ppo_mask, sppo_mask  = self._get_loss(advantages=advantages, ppo_loss=pg_losses, sppo_loss=sppo_loss)
