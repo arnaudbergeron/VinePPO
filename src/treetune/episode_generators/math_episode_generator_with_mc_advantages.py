@@ -218,6 +218,7 @@ class MathEpisodeGeneratorWithMCAdvantages(MathEpisodeGenerator):
                 response_token_ids=traj["response_token_ids"],
                 scores=traj["score"],
                 advantages=self._compute_token_advantages(traj),
+                critic_values=traj["token_values"]
             )
             episodes.append(episode)
 
@@ -356,21 +357,32 @@ class MathEpisodeGeneratorWithMCAdvantages(MathEpisodeGenerator):
 
         # Map advantages computed for reasoning steps to characters in the response text
         char_advantages = np.ones(len(response_text)) * -7777777
+        char_values = np.ones(len(response_text)+1) * -7777777
         for i, (start, end) in enumerate(zip(step_indices[:-1], step_indices[1:])):
             for j in range(start, end):
                 char_advantages[j] = advantages[i]
+                char_values[j] = trajectory["values_list"][i]
+
+        char_values[-1] = trajectory["values_list"][-1]
         assert np.all(char_advantages != -7777777)
 
         # Find the advantage of response tokens from the advantage of its characters
         token_advantages = [None] * len(response_token_ids)
+        token_values = [None]* (len(response_token_ids)+1)
         for i in range(len(token_advantages)):
             start_char_pos_of_token = offsets[i + len(query_token_ids)][0]
             start_char_pos_of_token -= len(query_text)
             token_advantages[i] = char_advantages[start_char_pos_of_token]
+            token_values[i]= char_values[start_char_pos_of_token]
 
+        token_values[-1] = char_values[-1]
         if has_eos:
             token_advantages.append(token_advantages[-1])
+            token_values.append(token_values[-1])
 
+        query_pad = [-7777777] * len(query_token_ids)
+        token_values_pad = query_pad + token_values
+        trajectory["token_values"] = token_values_pad
         # noinspection PyTypeChecker
         return token_advantages
 
@@ -389,6 +401,7 @@ class MathEpisodeGeneratorWithMCAdvantages(MathEpisodeGenerator):
                 break
             values[i] = step_rewards[i] + values[i + 1]
 
+        trajectory["values_list"] = values
         # noinspection DuplicatedCode
         assert all(v is not None for v in values)
 

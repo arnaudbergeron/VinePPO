@@ -344,10 +344,12 @@ class OnPolicyEpisodeGenerator(EpisodeGenerator):
         t0 = time.time()
 
         # Generate episodes from inference results. Each process generates its own episodes.
-        episodes_lst = [
-            self._convert_to_dict(e)
-            for e in self._generate_episodes(infer_results, iteration)
-        ]
+        episodes_lst = []
+        for e in self._generate_episodes(infer_results, iteration):
+            _epi = self._convert_to_dict(e)
+            episodes_lst.append(_epi)
+
+        
         episodes_ds_shard = Dataset.from_list(episodes_lst)
         episodes_ds_shard.save_to_disk(
             temp_dir / f"episodes" / f"shard_{process_index:02d}"

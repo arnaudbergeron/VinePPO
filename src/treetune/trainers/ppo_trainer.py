@@ -151,6 +151,7 @@ class PPOHParams:
     scale_sign_equal: bool = True
     relative_lr_positive: float = 1.0
     relative_lr_negative: float = 1.0
+    use_rewards: bool = False
 
     def __post_init__(self):
         assert self.temperature > 0, "Temperature should be positive."
@@ -600,10 +601,6 @@ class PPOTrainer(DeepSpeedPolicyTrainer):
 
         starting_epoch = 0
         for epoch in range(starting_epoch, self.num_epochs_per_iteration):
-            # critic_acc_loss = torch.tensor([0.0], device=critic.device)
-            # actor_acc_loss = torch.tensor([0.0], device=actor.device)
-            # critic_list = []
-            # actor_list = []
             for step, inputs in enumerate(dataloader_iter):
                 # Store the grad_acc_boundary before engine.step() is called
                 # as the engine.step() will reset the grad_acc_boundary
@@ -635,18 +632,7 @@ class PPOTrainer(DeepSpeedPolicyTrainer):
                             critic=critic,
                         )
                         globalstep_last_logged = self.state.global_step
-            
-            # critic_acc_loss = critic_acc_loss/num_acc_steps
-            # actor_acc_loss = actor_acc_loss/num_acc_steps
-            # critic.backward(critic_acc_loss)
-            # self._check_overflow(critic)
-            # critic.step()
-            # actor.backward(actor_acc_loss)
-            # self._check_overflow(actor)
-            # actor.step()
-            # critic_acc_loss = torch.tensor([0.0], device=critic.device)
-            # actor_acc_loss = torch.tensor([0.0], device=actor.device)
-            # Recreate the dataloader iterator
+        
             dataloader_iter = iter(dataloader)
 
         dist.barrier()
@@ -819,6 +805,11 @@ class PPOTrainer(DeepSpeedPolicyTrainer):
 
         # Step 2: Compute the policy/actor loss
         scores_rewards = rewards - non_score_rewards
+        if self.ppo_hparams.use_rewards:
+            values_to_use = torch.zeros_like(scores_rewards) + scores[:, None]
+        else:
+            values_to_use = inputs['critic_values']
+      
         actor_loss, is_skipped, actor_metrics, approx_ref_kl = self._compute_actor_loss(
             actor,
             model_inputs=model_inputs,
@@ -826,9 +817,9 @@ class PPOTrainer(DeepSpeedPolicyTrainer):
             old_logprobs=shifted_actor_logprobs,
             ref_logprobs=shifted_ref_logprobs,
             advantages=advantages,
+            values=values_to_use,
         )
         actor.backward(actor_loss)
-        print("actor_loss: ", actor_loss)
         self._check_overflow(actor)
         actor.step()
         # Get rid of actor's activations to free up memory
@@ -907,6 +898,7 @@ class PPOTrainer(DeepSpeedPolicyTrainer):
         old_logprobs: torch.FloatTensor,
         ref_logprobs: Optional[torch.FloatTensor],
         advantages: torch.FloatTensor,
+        values: Optional[torch.FloatTensor],
     ) -> Tuple[
         torch.FloatTensor, bool, Dict[str, torch.Tensor], Optional[torch.FloatTensor]
     ]:
@@ -974,6 +966,10 @@ class PPOTrainer(DeepSpeedPolicyTrainer):
         # Compute the PPO-clip loss
         log_ratio = (logprobs - old_logprobs) * action_mask
         ratio = torch.exp(log_ratio)
+        if self.ppo_hparams.use_rewards:
+            values_sliced = values
+        else:
+            values_sliced = values[:, :-1]
 
         pg_losses1 = -advantages * ratio
         with torch.no_grad():
@@ -982,27 +978,27 @@ class PPOTrainer(DeepSpeedPolicyTrainer):
             )
 
         if self.ppo_hparams.clip_sppo_low:
-            ppo_low_clip = self.ppo_hparams.ppo_clamp_value_low
+            negative_low_clip = self.ppo_hparams.ppo_clamp_value_low
         else:
-            ppo_low_clip = None
+            negative_low_clip = None
         
         if self.ppo_hparams.clip_sppo_high:
-            ppo_high_clip = self.ppo_hparams.ppo_clamp_value_high
+            negative_high_clip = self.ppo_hparams.ppo_clamp_value_high
         else:
-            ppo_high_clip = None
+            negative_high_clip = None
 
-        low_clip_mask_ppo = ratio < ppo_low_clip
-        high_clip_mask_ppo = ratio > ppo_high_clip
-        clip_mask_ppo = low_clip_mask_ppo | high_clip_mask_ppo
+        low_clip_mask_negative = ratio < negative_low_clip
+        high_clip_mask_negative = ratio > negative_high_clip
+        clip_mask_negative = low_clip_mask_negative | high_clip_mask_negative
 
-        loss_low_clip_ppo = -advantages * ppo_low_clip * log_ratio
-        loss_high_clip_ppo = -advantages * ppo_high_clip * log_ratio
-        loss_no_clip_ppo = pg_losses1
+        loss_low_clip_negative = -advantages * negative_low_clip * log_ratio
+        loss_high_clip_negative = -advantages * negative_high_clip * log_ratio
+        loss_no_clip_negative = pg_losses1
     
-        loss_ppo = torch.where(low_clip_mask_ppo, loss_low_clip_ppo, loss_no_clip_ppo)
-        loss_ppo = torch.where(high_clip_mask_ppo, loss_high_clip_ppo, loss_ppo)
+        loss_negative = torch.where(low_clip_mask_negative, loss_low_clip_negative, loss_no_clip_negative)
+        loss_negative = torch.where(high_clip_mask_negative, loss_high_clip_negative, loss_negative)
 
-        pg_losses = loss_ppo
+        pg_losses = loss_negative
 
         if self.ppo_hparams.is_mixed_rewards:
             # sppo_loss = -advantages * log_ratio * action_mask
@@ -1012,20 +1008,20 @@ class PPOTrainer(DeepSpeedPolicyTrainer):
             log_ratio_sppo = (logprobs-old_logprobs) * action_mask
             ratio_sppo = torch.exp(log_ratio_sppo)
             if self.ppo_hparams.sppo_clamp_value_low is not None or self.ppo_hparams.sppo_clamp_value_high is not None:
-                low_clip_sppo = self.ppo_hparams.sppo_clamp_value_low
-                high_clip_sppo = self.ppo_hparams.sppo_clamp_value_high
+                low_clip_positive = self.ppo_hparams.sppo_clamp_value_low
+                high_clip_positive = self.ppo_hparams.sppo_clamp_value_high
                 
-                low_clip_mask_sppo = ratio_sppo < low_clip_sppo
-                high_clip_mask_sppo = ratio_sppo > high_clip_sppo
-                clip_mask_sppo = low_clip_mask_sppo | high_clip_mask_sppo
+                low_clip_mask_positive = ratio_sppo < low_clip_positive
+                high_clip_mask_positive = ratio_sppo > high_clip_positive
+                clip_mask_positive = low_clip_mask_positive | high_clip_mask_positive
 
-                loss_low_clip_sppo = -advantages * low_clip_sppo * log_ratio_sppo
-                loss_high_clip_sppo = -advantages * high_clip_sppo * log_ratio_sppo
+                loss_low_clip_positive = -advantages * low_clip_positive * log_ratio_sppo
+                loss_high_clip_positive = -advantages * high_clip_positive * log_ratio_sppo
 
-                sppo_loss = torch.where(low_clip_mask_sppo, loss_low_clip_sppo, ppo_loss)
-                sppo_loss = torch.where(high_clip_mask_sppo, loss_high_clip_sppo, sppo_loss)
+                positive_loss = torch.where(low_clip_mask_positive, loss_low_clip_positive, ppo_loss)
+                positive_loss = torch.where(high_clip_mask_positive, loss_high_clip_positive, positive_loss)
 
-            tot_loss, ppo_mask, sppo_mask  = self._get_loss(advantages=advantages, ppo_loss=pg_losses, sppo_loss=sppo_loss)
+            tot_loss, ppo_mask, sppo_mask  = self._get_loss(advantages=advantages, ppo_loss=pg_losses, sppo_loss=positive_loss)
 
             pg_loss = masked_mean(tot_loss, action_mask)
         else:
@@ -1062,15 +1058,15 @@ class PPOTrainer(DeepSpeedPolicyTrainer):
             is_skipped = True
 
         pg_clip_frac = masked_mean(
-            clip_mask_ppo, ppo_mask
+            clip_mask_negative, ppo_mask
         )
 
         if self.ppo_hparams.is_mixed_rewards:
             pg_clip_sppo = masked_mean(
-                clip_mask_sppo, sppo_mask
+                clip_mask_positive, sppo_mask
             )
             sppo_anomalies = monitor_tensor_anomalies(
-                sppo_loss.detach(), sppo_mask.bool()
+                positive_loss.detach(), sppo_mask.bool()
             )
 
         approx_kl = 0.5 * masked_mean((logprobs - old_logprobs) ** 2, action_mask)
@@ -1838,6 +1834,7 @@ class PPOTrainer(DeepSpeedPolicyTrainer):
 
     def _get_episodes_w_ref_logps(self, episodes: Dataset) -> Dataset:
         logger.info(f"Computing the reference log probabilities.")
+        print('batch size:', self.args.per_device_train_batch_size)
 
         ds_w_ref_logprobs_path = (
             self.checkpoints_dir
@@ -1847,6 +1844,8 @@ class PPOTrainer(DeepSpeedPolicyTrainer):
 
         # Initialize and use the reference model to compute log probabilities for the dataset
         ref_engine = self._init_reference_model()
+        print('2batch size:', self.args.per_device_train_batch_size)
+
         t0 = time.time()
         aug_ds = self._update_episodes_with_log_probs(
             ref_engine, episodes, COLUMN_REF_SHIFTED_LOGPS

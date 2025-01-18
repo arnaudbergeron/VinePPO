@@ -25,6 +25,7 @@ class Episode:
     reward: float = None  # Kept for backward compatibility
     scores: float = None
     advantages: Optional[List[float]] = None
+    critic_values: Optional[List[float]] = None
 
     def __post_init__(self):
         assert len(self.query_token_ids) > 0

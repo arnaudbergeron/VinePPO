@@ -10,6 +10,7 @@ class LLaMA(Transformers):
 
         # load the LLaMA specific tokenizer and model
         import transformers
+
         if isinstance(model, str):
             if tokenizer is None:
                 tokenizer = transformers.LlamaTokenizer.from_pretrained(model, **kwargs)
