@@ -9,8 +9,8 @@ You are a helpful assistant solving math questions. Always answer in most accura
 <</SYS>>
 Answer the following middle school math word problems, which require multi-step arithmetic reasoning.
 
-Q: {question}[/INST]
-A:';
+Question: {query}[/INST]
+Answer:';
 
 orig_library + {
     prompt_library+: {

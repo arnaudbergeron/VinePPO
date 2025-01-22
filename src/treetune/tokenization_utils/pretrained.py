@@ -12,7 +12,7 @@ class DIPreTrainedTokenizer(Tokenizer):
         cls, hf_model_name: str, pretrained_args: Optional[JsonDict] = None, **kwargs
     ) -> PreTrainedTokenizerFast:
         if pretrained_args is None:
-            pretrained_args = {"max_position_embeddings":8192}
+            pretrained_args = {}
 
         tokenizer = AutoTokenizer.from_pretrained(
             hf_model_name, use_fast=True, **pretrained_args

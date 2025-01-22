@@ -15,7 +15,7 @@ Step i:
 Step i+1:
 ...some thinking process...
 
-Q:{question}[/INST]
+Q:{query}[/INST]
 A:';
 
 {

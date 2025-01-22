@@ -1,8 +1,8 @@
-local hf_model_name = 'meta-llama/Llama-3.2-1B';
+local hf_model_name = 'meta-llama/Llama-3.2-1B-Instruct';
 
 local actor_tokenizer = {
     type: 'pretrained',
-    hf_model_name: 'meta-llama/Llama-3.2-1B',
+    hf_model_name: 'meta-llama/Llama-3.2-1B-Instruct',
 };
 
 local math_task = (import 'tasks/math_inplace_no_answer_prefix.jsonnet') + {
@@ -10,15 +10,15 @@ local math_task = (import 'tasks/math_inplace_no_answer_prefix.jsonnet') + {
     ensure_fit_in_context_size: false,
 };
 
-local num_episodes_per_iteration = 512;
-local num_rollouts_per_sample = 8;
+local num_episodes_per_iteration = 8;
+local num_rollouts_per_sample = 1;
 local num_dataset_samples_per_iteration = num_episodes_per_iteration / num_rollouts_per_sample;
 local total_num_iterations = 1000;
 
 local sampling_temperature = 0.6;
 
 (import 'gvar.jsonnet')
-+ (import 'prompt_library/MATH_step_by_step_sft.jsonnet')
++ (import 'prompt_library/llama2_sft_gsm8k.jsonnet')
 + (import 'runtimes/policy_iteration.jsonnet')
 + (import 'episode_generators/math_episode_generator.jsonnet')
 + (import 'trainers/ppo_MATH.jsonnet')
@@ -36,7 +36,7 @@ local sampling_temperature = 0.6;
         dataset_num_samples_per_iteration: num_dataset_samples_per_iteration,
         total_num_iterations: $.num_iterations,
 
-        vllm_server+: { swap_space: 8, max_num_seqs: 512 },
+        vllm_server+: { swap_space: 32, max_num_seqs: 512, max_model_len: 2048 },
         vllm_min_available_gpu_memory_mb: 10 * 1024,
 
         inference_strategy: {
@@ -55,7 +55,7 @@ local sampling_temperature = 0.6;
                     temperature: sampling_temperature,
                     top_p: 0.9,
                     max_tokens: 1024,
-                    stop: '"\n\n\nProblem:"',
+                    stop: '"\nAnswer:"',
                 },
                 node_text_template: '{chain_of_thought}',
 
@@ -65,8 +65,12 @@ local sampling_temperature = 0.6;
             },
 
             answer_extractor: {
-                type: 'identity',
-                node_key_name: 'text',
+                type: 'next_chat_turn',
+                program: $.prompt_library.tree.answer_extract.next_chat_turn,
+                program_kwargs: {
+                temperature: 0,
+                max_tokens: 20,
+            },
             },
 
             guidance_llm: (import 'guidance_llms/rho1b-sft-GSM8K_llama.jsonnet') + { api_base: 'none' },
@@ -80,7 +84,7 @@ local sampling_temperature = 0.6;
 
     tokenizer: {
         type: 'pretrained',
-        hf_model_name: 'meta-llama/Llama-3.2-1B',
+        hf_model_name: 'meta-llama/Llama-3.2-1B-Instruct',
     },
     use_deepspeed: true,
 
@@ -91,7 +95,7 @@ local sampling_temperature = 0.6;
     trainer+: {
         params+: { temperature: $.episode_generator.inference_strategy.node_expander.program_kwargs.temperature },
         // temp_checkpoint_dir: '/network/scratch/a/arnaud.bergeron1/rlhf/temp_checkpoints',
-        actor_model+: { hf_model_name: $.episode_generator.initial_model_name_or_path, max_position_embeddings:8192 },
+        actor_model+: { hf_model_name: $.episode_generator.initial_model_name_or_path,  },
         critic_model+: { pretrained_backbone_model+: { hf_model_name: $.episode_generator.initial_model_name_or_path } },
         reference_model+: { hf_model_name: $.episode_generator.initial_model_name_or_path },
 
@@ -102,7 +106,7 @@ local sampling_temperature = 0.6;
         report_entropy: false,
 
         general_training_args+: {
-            target_train_batch_size: 64,
+            target_train_batch_size: 8,
             per_device_train_batch_size: null,  // Will be auto computed
             gradient_accumulation_steps: 1,
 
@@ -113,7 +117,7 @@ local sampling_temperature = 0.6;
 
 
     analyzers: [
-        (import 'analyzers/valnet_prediction.jsonnet') + {
+        (import 'analyzers/valnet_prediction_llama.jsonnet') + {
             task: $.episode_generator.task,
             tokenizer: $.tokenizer,
             vllm_server+: { swap_space: 24 },
@@ -142,7 +146,7 @@ local sampling_temperature = 0.6;
             per_device_batch_size: 16,
         },
 
-        (import 'analyzers/valnet_action_ranking.jsonnet') + {
+        (import 'analyzers/valnet_action_ranking_llama.jsonnet') + {
             task: $.episode_generator.task,
             tokenizer: $.tokenizer,
             vllm_server+: { swap_space: 24 },

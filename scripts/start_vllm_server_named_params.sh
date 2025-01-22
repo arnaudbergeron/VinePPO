@@ -33,7 +33,7 @@ random_number=$RANDOM
 export VLLM_HF_FOLDER_CACHE_FILE=${HF_HOME:-$(pwd)}/vllm_hf_folder_cache.json
 export VLLM_CACHE_ROOT=${HF_HOME:-$(pwd)}/${random_number}
 
-CUDA_VISIBLE_DEVICES=$GPU_IDX python -m vllm.entrypoints.openai.api_server \
+CUDA_VISIBLE_DEVICES=$GPU_IDX /home/mila/a/arnaud.bergeron1/.conda/envs/vine_new/bin/python -m vllm.entrypoints.openai.api_server \
     --model "$MODEL" \
     --host 0.0.0.0 \
     --port "$PORT" \

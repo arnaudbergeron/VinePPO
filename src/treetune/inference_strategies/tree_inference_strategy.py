@@ -150,6 +150,9 @@ class TreeInferenceStrategy(InferenceStrategy):
                     tr = await self._construct_tree(*args, **kwargs)
                     return tree_idx, tr
                 except:
+                    print(f"Error constructing tree for {tree_idx}")
+                    print(f"Args: {args}")
+                    print(f"Kwargs: {kwargs}")
                     # If there is an error, we just exit the program
                     # as soon as possible, otherwise the program will continue
                     # blocking the semaphore and thus blocking the entire process
@@ -213,7 +216,6 @@ class TreeInferenceStrategy(InferenceStrategy):
 
             format_kwargs = {key: data_instance[key] for key in question_format_keys}
             initial_prompt = self.question_template.format(**format_kwargs)
-
             tasks.append(
                 asyncio.create_task(
                     wrapper_construct_tree(

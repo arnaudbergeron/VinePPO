@@ -1834,7 +1834,6 @@ class PPOTrainer(DeepSpeedPolicyTrainer):
 
     def _get_episodes_w_ref_logps(self, episodes: Dataset) -> Dataset:
         logger.info(f"Computing the reference log probabilities.")
-        print('batch size:', self.args.per_device_train_batch_size)
 
         ds_w_ref_logprobs_path = (
             self.checkpoints_dir
@@ -1844,7 +1843,6 @@ class PPOTrainer(DeepSpeedPolicyTrainer):
 
         # Initialize and use the reference model to compute log probabilities for the dataset
         ref_engine = self._init_reference_model()
-        print('2batch size:', self.args.per_device_train_batch_size)
 
         t0 = time.time()
         aug_ds = self._update_episodes_with_log_probs(

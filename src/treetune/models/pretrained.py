@@ -247,7 +247,6 @@ class DIPreTrainedModel(Model, PreTrainedModel):
         use_flash_attention_2 = pretrained_args.pop(
             "use_flash_attention_2", is_flash_attention_available()
         )
-        pretrained_args['max_position_embeddings'] = 8192
         torch_dtype = pretrained_args.pop("torch_dtype", torch.bfloat16)
         model = AutoModel.from_pretrained(
             hf_model_name,

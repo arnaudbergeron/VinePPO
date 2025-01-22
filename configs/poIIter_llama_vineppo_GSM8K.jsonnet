@@ -1,4 +1,4 @@
-local hf_model_name = 'meta-llama/Llama-3.2-1B';
+local hf_model_name = 'meta-llama/Llama-3.2-1B-Instruct';
 local task = (import 'tasks/gsm8k_orig_format.jsonnet');
 local total_num_iterations = 650;
 

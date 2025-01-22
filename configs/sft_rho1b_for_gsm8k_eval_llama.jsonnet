@@ -3,13 +3,13 @@ local temperature = 0.35;
 
 local tokenizer = {
     type: 'pretrained',
-    hf_model_name: 'meta-llama/Llama-3.2-1B',
+    hf_model_name: 'meta-llama/Llama-3.2-1B-Instruct',
 };
 
 local greedy_program = '{{prefix}}{{gen "chain_of_thought" temperature={temperature} max_tokens={max_tokens} save_stop_text="stop_text" stop={stop} n={num_samples} seed={seed}}}';
 
 local math_inference_pipeline =
-    (import 'prompt_library/generic_GSM8K_step_by_step.jsonnet')
+    (import 'prompt_library/llama2_sft_gsm8k.jsonnet')
     + (import 'inference_strategies/tree/iid_expander.jsonnet')
     + (import 'inference_strategies/cot.jsonnet')
     + {
@@ -23,7 +23,7 @@ local math_inference_pipeline =
                     temperature: temperature,
                     top_p: 0.9,
                     max_tokens: 1024,
-                    stop: '"\n\n\nProblem:"',
+                    stop: '"\nAnswer:"',
                 },
                 node_text_template: '{chain_of_thought}',
 
@@ -32,8 +32,12 @@ local math_inference_pipeline =
                 tokenizer: tokenizer,
             },
             answer_extractor+: {
-                type: 'identity',
-                node_key_name: 'text',
+                type: 'next_chat_turn',
+                program: $.prompt_library.tree.answer_extract.next_chat_turn,
+                program_kwargs: {
+                temperature: 0,
+                max_tokens: 20,
+            },
             },
             samples: num_samples,
             max_depth: 10,

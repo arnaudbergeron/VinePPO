@@ -13,6 +13,9 @@ import torch.cuda
 from accelerate.utils import release_memory
 from datasets import Dataset, concatenate_datasets
 
+import gc
+import ray
+
 from treetune.common import Lazy
 from treetune.common.gpu_utils import get_gpu_memory, wait_for_memory_release
 from treetune.common.py_utils import find_n_free_ports
@@ -469,11 +472,15 @@ class OnPolicyEpisodeGenerator(EpisodeGenerator):
 
         results = inference_strategy.generate(dataset_shard)
         results.save_to_disk(str(infer_result_path))
-        vllm_server.stop_server()
+        this_process_device = self.distributed_state.device
+        vllm_server.stop_server(this_process_device.index)
 
+        release_memory(vllm_server, results)
         del results
         del vllm_server
-        release_memory()
+        torch.cuda.empty_cache()
+        gc.collect()
+        ray.shutdown()
 
         vllm_cleanup_fn()
         release_memory()

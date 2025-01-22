@@ -284,13 +284,21 @@ class VLLMServer(FromParams):
         else:
             self.process = subprocess.Popen(command)
 
-    def stop_server(self):
+    def stop_server(self, this_process_device=None):
         if self.process is None or self.process.poll() is not None:
             logger.info("Server is not running.")
             return
 
+
+        pid_max_mem = self.find_proc_mem(this_process_device)
+
+        self.process.terminate()
+        time.sleep(5)
         self.process.kill()
         time.sleep(3)
+
+        #kill pid with max memory
+        os.kill(pid_max_mem, 9)
 
         # Use pkill to kill processes matching the pattern
         pattern = f"vllm.entrypoints.openai.api_server.*port {self.port}"
@@ -323,3 +331,51 @@ class VLLMServer(FromParams):
 
         self.process.kill()
         self.process.wait()
+
+        
+        pid_dict = [p.name() for p in psutil.process_iter()]
+        print(f"Process ID after: {pid_dict}")
+
+    def find_proc_mem(self, device_index):
+        ps_call = subprocess.run(['nvidia-smi'], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        lines_proc = ps_call.stdout.decode().split("\n")
+        print(f"Process ID before: {lines_proc}")
+
+        process_lines = []
+        found_proc = False
+        for line in lines_proc:
+            if found_proc:
+                if len(line) > 1:
+                    if '+-------------------------------' not in line:
+                        if '=======' not in line:
+                            if 'GPU Memory' not in line:
+                                if 'Usage' not in line:
+                                    process_lines.append(line)
+            if 'Processes:' in line:
+                found_proc = True
+                
+        run_items = []
+        run_mem = []
+        for run in process_lines:
+            _run = []
+            for sub_string in run.split(' '):
+                if len(sub_string) > 0:
+                    _run.append(sub_string)
+            gpu_id = int(_run[1])
+            if gpu_id != device_index:
+                continue
+            pid = _run[4]
+            mem = _run[-2].split('MiB')[0]
+            run_mem.append([pid, mem])
+
+            run_items.append(_run)
+        
+        pid_max = None
+        mem_max = 0
+        current_pid = os.getpid()
+        for pid, mem in run_mem:
+            if int(mem) > mem_max and int(pid) != current_pid:
+                pid_max = int(pid)
+                mem_max = int(mem)
+        
+        return pid_max

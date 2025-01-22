@@ -17,9 +17,12 @@ local num_mc_rollouts = 9;
 
             node_expander: $.episode_generator.inference_strategy.node_expander,
             answer_extractor: {
-                type: 'identity_with_solution_prefix',
-                node_key_name: 'full_text',
-                solution_prefix: '\nSolution:',
+                type: 'next_chat_turn',
+                program: $.prompt_library.tree.answer_extract.next_chat_turn,
+                program_kwargs: {
+                temperature: 0,
+                max_tokens: 20,
+            },
             },
 
             guidance_llm: $.episode_generator.inference_strategy.guidance_llm,
@@ -39,7 +42,7 @@ local num_mc_rollouts = 9;
     },
 
     analyzers: [
-        (import 'analyzers/mc_value_prediction.jsonnet') + {
+        (import 'analyzers/mc_value_prediction_llama.jsonnet') + {
             task: $.episode_generator.task,
             tokenizer: $.tokenizer,
             vllm_server+: { swap_space: 24 },
@@ -70,7 +73,7 @@ local num_mc_rollouts = 9;
             max_num_iterations: 10,
         },
 
-        (import 'analyzers/mc_value_action_ranking.jsonnet') + {
+        (import 'analyzers/mc_value_action_ranking_llama.jsonnet') + {
             task: $.episode_generator.task,
             tokenizer: $.tokenizer,
             vllm_server+: { swap_space: 24 },

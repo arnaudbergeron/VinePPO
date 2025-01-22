@@ -7,7 +7,7 @@ from treetune.common.py_utils import format_string
 from treetune.inference_strategies.tree_inference import Node
 
 logger = logging_utils.get_logger(__name__)
-
+import re
 
 class AnswerExtractor(Registrable):
     def __init__(self, seed: Optional[int] = None, **kwargs):
@@ -38,10 +38,12 @@ class NextTurnAnswerExtractor(AnswerExtractor):
 
     async def extract(self, full_text: str) -> str:
         result = await self._run_program(self.program_template, prefix=full_text)
+        print('next_chat_turn', result)
         variables = result.variables()
         final_answer = variables["final_answer"]
-
-        return final_answer
+        final_ans_match = re.findall("([0-9]+[,.]+[0-9]+)", final_answer)
+        print(final_ans_match)
+        return final_ans_match[-1]
 
 
 @AnswerExtractor.register("next_chat_turn_code")
