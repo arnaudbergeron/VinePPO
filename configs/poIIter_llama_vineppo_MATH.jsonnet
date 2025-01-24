@@ -1,4 +1,4 @@
-local num_mc_rollouts = 9;
+local num_mc_rollouts = 1;
 
 (import 'polIter_rho1bSft2_ppo_MATH_llama.jsonnet')
 + (import 'trainers/no_critic.jsonnet')
@@ -9,8 +9,8 @@ local num_mc_rollouts = 9;
         value_estimation_inference_strategy+: {
             type: 'cot',
 
-            max_concurrent_programs: 128,
-            max_concurrent_generations: 32,
+            max_concurrent_programs: 16,
+            max_concurrent_generations: 4,
 
             samples: num_mc_rollouts,
             max_depth: 100,  // Deprecated parameter. Doesn't do anything.
@@ -56,8 +56,8 @@ local num_mc_rollouts = 9;
                 guidance_llm: $.episode_generator.inference_strategy.guidance_llm,
 
                 // Small model. Can afford more concurrent programs.
-                max_concurrent_programs: 128,
-                max_concurrent_generations: 32,
+                max_concurrent_programs: 16,
+                max_concurrent_generations: 4,
 
                 node_expander+: {
                     program_kwargs+: { temperature: $.episode_generator.inference_strategy.node_expander.program_kwargs.temperature },
@@ -67,7 +67,7 @@ local num_mc_rollouts = 9;
             },
         },
         (import 'analyzers/ppo_grad_variance.jsonnet') + {
-            per_device_batch_size: 16,
+            per_device_batch_size: 1,
         },
         (import 'analyzers/mc_advantage_distribution.jsonnet') + {
             max_num_iterations: 10,
@@ -89,8 +89,8 @@ local num_mc_rollouts = 9;
                 guidance_llm: $.episode_generator.inference_strategy.guidance_llm,
 
                 // Small model. Can afford more concurrent programs.
-                max_concurrent_programs: 128,
-                max_concurrent_generations: 128,
+                max_concurrent_programs: 16,
+                max_concurrent_generations: 16,
 
                 node_expander+: {
                     program_kwargs+: { temperature: $.episode_generator.inference_strategy.node_expander.program_kwargs.temperature },
@@ -101,6 +101,6 @@ local num_mc_rollouts = 9;
         },
     ],
 }
-+ (import 'episode_generators/9rolls.jsonnet')
-+ (import 'trainers/refKl0.0001.jsonnet')
++ (import 'episode_generators/1rolls.jsonnet')
++ (import 'trainers/refKl0.0.jsonnet')
 + (import 'trainers/klLoss.jsonnet')

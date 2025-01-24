@@ -34,6 +34,7 @@ class GSM8K(Task):
         **kwargs,
     ):
         super().__init__(**kwargs)
+        print("GSM8K TASK__")
         self.remove_calculator_expressions = remove_calculator_expressions
         self.use_original_format = use_original_format
         self.answer_prefix = answer_prefix
@@ -76,7 +77,9 @@ class GSM8K(Task):
             >>> indices = split_solution_into_reasoning_steps(solution)
             >>> steps = [solution[indices[i]:indices[i+1]] for i in range(len(indices) - 1)]
         """
-        assert self.use_original_format, "This method is only for original format"
+        # assert self.use_original_format, "This method is only for original format"
+        if not self.use_original_format:
+            return  [0, len(solution)]
         assert self.intermediate_step_delimiter is not None
 
         delimiter = self.intermediate_step_delimiter
@@ -153,9 +156,11 @@ class GSM8K(Task):
             return False
 
         assert ground_truth is not None
+        ground_truth = ground_truth.replace(",", "")
+
         return (
-            given_answer.strip().replace(",", "").lower()
-            == ground_truth.strip().lower()
+            float(given_answer.strip().replace(",", "").lower())
+            == float(ground_truth.strip().lower())
         )
 
     # noinspection DuplicatedCode

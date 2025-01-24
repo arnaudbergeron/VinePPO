@@ -1,8 +1,8 @@
-local hf_model_name = 'meta-llama/Llama-3.2-1B-Instruct';
+local hf_model_name = 'meta-llama/Llama-3.1-8B-Instruct';
 
 local actor_tokenizer = {
     type: 'pretrained',
-    hf_model_name: 'meta-llama/Llama-3.2-1B-Instruct',
+    hf_model_name: 'meta-llama/Llama-3.1-8B-Instruct',
 };
 
 local math_task = (import 'tasks/math_inplace_no_answer_prefix.jsonnet') + {
@@ -10,10 +10,10 @@ local math_task = (import 'tasks/math_inplace_no_answer_prefix.jsonnet') + {
     ensure_fit_in_context_size: false,
 };
 
-local num_episodes_per_iteration = 8;
+local num_episodes_per_iteration = 400;
 local num_rollouts_per_sample = 1;
 local num_dataset_samples_per_iteration = num_episodes_per_iteration / num_rollouts_per_sample;
-local total_num_iterations = 1000;
+local total_num_iterations = 8;
 
 local sampling_temperature = 0.6;
 
@@ -32,18 +32,19 @@ local sampling_temperature = 0.6;
 
         initial_model_name_or_path: hf_model_name,
 
-        dataset_sample_with_replacement: true,
+        dataset_sample_with_replacement: false,
+        dataset_initial_size: 200,
         dataset_num_samples_per_iteration: num_dataset_samples_per_iteration,
         total_num_iterations: $.num_iterations,
 
-        vllm_server+: { swap_space: 32, max_num_seqs: 512, max_model_len: 2048 },
+        vllm_server+: { swap_space: 64, max_num_seqs: 512, max_model_len: 2048 },
         vllm_min_available_gpu_memory_mb: 10 * 1024,
 
         inference_strategy: {
             type: 'cot',
 
-            max_concurrent_programs: 128,
-            max_concurrent_generations: 128,
+            max_concurrent_programs: 16,
+            max_concurrent_generations: 16,
 
             samples: num_rollouts_per_sample,
             max_depth: 100,  // Deprecated parameter. Doesn't do anything.
@@ -55,7 +56,7 @@ local sampling_temperature = 0.6;
                     temperature: sampling_temperature,
                     top_p: 0.9,
                     max_tokens: 1024,
-                    stop: '"\nAnswer:"',
+                    stop: '"<|eot_id|>>"',
                 },
                 node_text_template: '{chain_of_thought}',
 
@@ -84,7 +85,7 @@ local sampling_temperature = 0.6;
 
     tokenizer: {
         type: 'pretrained',
-        hf_model_name: 'meta-llama/Llama-3.2-1B-Instruct',
+        hf_model_name: 'meta-llama/Llama-3.1-8B-Instruct',
     },
     use_deepspeed: true,
 
@@ -95,7 +96,12 @@ local sampling_temperature = 0.6;
     trainer+: {
         params+: { temperature: $.episode_generator.inference_strategy.node_expander.program_kwargs.temperature },
         // temp_checkpoint_dir: '/network/scratch/a/arnaud.bergeron1/rlhf/temp_checkpoints',
-        actor_model+: { hf_model_name: $.episode_generator.initial_model_name_or_path,  },
+        actor_model+: { 
+            hf_model_name: $.episode_generator.initial_model_name_or_path,
+            freeze_config+:{
+            freeze_first_k_layers: 22,
+            freeze_embeddings: true,
+        }},
         critic_model+: { pretrained_backbone_model+: { hf_model_name: $.episode_generator.initial_model_name_or_path } },
         reference_model+: { hf_model_name: $.episode_generator.initial_model_name_or_path },
 
@@ -106,7 +112,7 @@ local sampling_temperature = 0.6;
         report_entropy: false,
 
         general_training_args+: {
-            target_train_batch_size: 8,
+            target_train_batch_size: 1,
             per_device_train_batch_size: null,  // Will be auto computed
             gradient_accumulation_steps: 1,
 
@@ -131,8 +137,8 @@ local sampling_temperature = 0.6;
                 guidance_llm: $.episode_generator.inference_strategy.guidance_llm,
 
                 // Small model. Can afford more concurrent programs.
-                max_concurrent_programs: 128,
-                max_concurrent_generations: 128,
+                max_concurrent_programs: 16,
+                max_concurrent_generations: 16,
 
                 node_expander+: {
                     program_kwargs+: { temperature: $.episode_generator.inference_strategy.node_expander.program_kwargs.temperature },
@@ -143,7 +149,7 @@ local sampling_temperature = 0.6;
         },
 
         (import 'analyzers/ppo_grad_variance.jsonnet') + {
-            per_device_batch_size: 16,
+            per_device_batch_size: 1,
         },
 
         (import 'analyzers/valnet_action_ranking_llama.jsonnet') + {
@@ -154,7 +160,7 @@ local sampling_temperature = 0.6;
             reward_function: $.episode_generator.reward_function,
 
             max_num_requests: 512,
-            max_num_states: 128,
+            max_num_states: 16,
 
             append_bos_to_query: $.episode_generator.append_bos_to_query,
 
@@ -162,8 +168,8 @@ local sampling_temperature = 0.6;
                 guidance_llm: $.episode_generator.inference_strategy.guidance_llm,
 
                 // Small model. Can afford more concurrent programs.
-                max_concurrent_programs: 128,
-                max_concurrent_generations: 128,
+                max_concurrent_programs: 16,
+                max_concurrent_generations: 16,
 
                 node_expander+: {
                     program_kwargs+: { temperature: $.episode_generator.inference_strategy.node_expander.program_kwargs.temperature },
@@ -176,5 +182,5 @@ local sampling_temperature = 0.6;
 }
 + (import 'sft_rho1b_for_MATH_eval_llama.jsonnet')
 + (import 'trainers/lam1.jsonnet')
-+ (import 'trainers/refKl0.0001.jsonnet')
++ (import 'trainers/refKl0.0.jsonnet')
 + (import 'trainers/klLoss.jsonnet')

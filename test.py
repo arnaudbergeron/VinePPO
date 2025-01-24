@@ -29,7 +29,7 @@
 
 # # Load model with explicit settings
 # model = AutoModelForCausalLM.from_pretrained(
-#     "meta-llama/Llama-3.2-1B-Instruct",
+#     "meta-llama/Llama-3.1-8B-Instruct",
 #     torch_dtype=torch.bfloat16,
 #     device_map="auto",
 #     max_position_embeddings=8192  # Use original context length
@@ -41,7 +41,7 @@
 
 # from transformers import AutoTokenizer
 
-# tokenizer = AutoTokenizer.from_pretrained("meta-llama/Llama-3.2-1B-Instruct", padding_side='left')
+# tokenizer = AutoTokenizer.from_pretrained("meta-llama/Llama-3.1-8B-Instruct", padding_side='left')
 
 # id1 = tokenizer.convert_tokens_to_ids('\n')
 # print(id1) # None
@@ -151,7 +151,7 @@
 #     return suggestions
 
 # diagnostics = debug_model_outputs(
-#     "meta-llama/Llama-3.2-1B-Instruct",
+#     "meta-llama/Llama-3.1-8B-Instruct",
 #     "You are a helpful assistant solving math questions. Always answer in most accurate way. \
 #     <</SYS>> \
 #     Answer the following middle school math word problems, which require multi-step arithmetic reasoning.\
@@ -164,8 +164,49 @@
 # print(suggestions)
 
 
-import subprocess
+# import subprocess
 
-ps_call = subprocess.run(['nvidia-smi'], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-lines_proc = ps_call.stdout.decode().split("\n")
-print(f"Process ID before: {lines_proc}")
+# ps_call = subprocess.run(['nvidia-smi'], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+# lines_proc = ps_call.stdout.decode().split("\n")
+# print(f"Process ID before: {lines_proc}")
+
+
+def extract_predicted_answer_from_text(text: str, problem: Optional[str] = None
+    ) -> Optional[str]:
+    # Extract the final answer based on ####
+    if "####" not in text:
+        return None
+    parts = text.split("####")
+    assert len(parts) >= 2
+    return parts[-1].strip()
+
+    text = text.replace(",", "")
+    pred_answer = FIND_NUMBERS_REGEX.findall(text)  # TODO: add task to attributes
+    if len(pred_answer) == 0:
+        return None
+    else:
+        # Pick the last number
+        pred_answer = pred_answer[-1].strip()
+        return pred_answer
+
+def extract_gold_answer_from_text(text: str) -> str:
+        return text.split("####")[1].strip()
+
+
+def grade_answer(
+        *,
+        given_answer: Optional[str] = None,
+        ground_truth: str = None,
+        item: Optional[Dict[str, Any]] = None,
+        timeout: Optional[int] = None,
+    ) -> bool:
+        # if given_answer is None:
+        #     return False
+
+        # assert ground_truth is not None
+        # ground_truth = ground_truth.replace(",", "")
+
+        # return (
+        #     float(given_answer.strip().replace(",", "").lower())
+        #     == float(ground_truth.strip().lower())
+        # )

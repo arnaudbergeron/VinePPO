@@ -3,7 +3,7 @@ local temperature = 0.35;
 
 local tokenizer = {
     type: 'pretrained',
-    hf_model_name: 'meta-llama/Llama-3.2-1B-Instruct',
+    hf_model_name: 'meta-llama/Llama-3.1-8B-Instruct',
 };
 
 local greedy_program = '{{prefix}}{{gen "chain_of_thought" temperature={temperature} max_tokens={max_tokens} save_stop_text="stop_text" stop={stop} n={num_samples} seed={seed}}}';
@@ -15,7 +15,7 @@ local math_inference_pipeline =
     + {
         inference_strategy+: {
             max_concurrent_programs: 512,
-            max_concurrent_generations: 128,
+            max_concurrent_generations: 16,
 
             node_expander+: {
                 type: 'efficient_iid',
@@ -23,7 +23,7 @@ local math_inference_pipeline =
                     temperature: temperature,
                     top_p: 0.9,
                     max_tokens: 1024,
-                    stop: '"\nAnswer:"',
+                    stop: '"<|eot_id|>>"',
                 },
                 node_text_template: '{chain_of_thought}',
 
@@ -48,7 +48,7 @@ local math_inference_pipeline =
 
             seed: 42,
         },
-        task: (import 'tasks/gsm8k_orig_format.jsonnet'),
+        task: (import 'tasks/gsm8k.jsonnet'),
         analyzers: [(import 'analyzers/task_performance.jsonnet')],
     };
 

@@ -73,6 +73,7 @@ class MathEpisodeGeneratorWithMCAdvantages(MathEpisodeGenerator):
         if traj_infer_results is None:
             _, guidance_llm_kwargs = get_vllm_server()
 
+
             t0 = time.time()
             traj_infer_results = self._obtain_inference_results(
                 inference_strategy_lazy=self.inference_strategy_lazy,

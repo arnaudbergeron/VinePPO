@@ -149,10 +149,11 @@ class TreeInferenceStrategy(InferenceStrategy):
                 try:
                     tr = await self._construct_tree(*args, **kwargs)
                     return tree_idx, tr
-                except:
+                except Exception as e:
                     print(f"Error constructing tree for {tree_idx}")
                     print(f"Args: {args}")
                     print(f"Kwargs: {kwargs}")
+                    print(e)
                     # If there is an error, we just exit the program
                     # as soon as possible, otherwise the program will continue
                     # blocking the semaphore and thus blocking the entire process

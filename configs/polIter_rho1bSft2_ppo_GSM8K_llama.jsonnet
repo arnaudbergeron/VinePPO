@@ -1,6 +1,6 @@
-local hf_model_name = 'meta-llama/Llama-3.2-1B-Instruct';
-local task = (import 'tasks/gsm8k_orig_format.jsonnet');
-local total_num_iterations = 650;
+local hf_model_name = 'meta-llama/Llama-3.1-8B-Instruct';
+local task = (import 'tasks/gsm8k.jsonnet');
+local total_num_iterations = 3200;
 
 
 (import 'polIter_rho1bSft2_ppo_MATH_llama.jsonnet')
@@ -20,5 +20,5 @@ local total_num_iterations = 650;
 }
 + (import 'sft_rho1b_for_gsm8k_eval_llama.jsonnet')
 + (import 'trainers/lam1.jsonnet')
-+ (import 'trainers/refKl0.0001.jsonnet')
++ (import 'trainers/refKl0.0.jsonnet')
 + (import 'trainers/klLoss.jsonnet')

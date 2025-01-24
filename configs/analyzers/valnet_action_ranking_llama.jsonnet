@@ -29,7 +29,7 @@ local num_alternative_actions = 5;
                 temperature: 1,
                 top_p: 0.9,
                 max_tokens: 1024,
-                stop: '"\nAnswer:"',
+                stop: '"<|eot_id|>>"',
             },
             node_text_template: '{chain_of_thought}',
             num_expansion_rounds: num_expansion_rounds,

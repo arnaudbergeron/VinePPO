@@ -298,7 +298,8 @@ class VLLMServer(FromParams):
         time.sleep(3)
 
         #kill pid with max memory
-        os.kill(pid_max_mem, 9)
+        if pid_max_mem is not None:
+            os.kill(pid_max_mem, 9)
 
         # Use pkill to kill processes matching the pattern
         pattern = f"vllm.entrypoints.openai.api_server.*port {self.port}"
@@ -362,8 +363,8 @@ class VLLMServer(FromParams):
                 if len(sub_string) > 0:
                     _run.append(sub_string)
             gpu_id = int(_run[1])
-            if gpu_id != device_index:
-                continue
+            # if gpu_id != device_index:
+            #     continue
             pid = _run[4]
             mem = _run[-2].split('MiB')[0]
             run_mem.append([pid, mem])

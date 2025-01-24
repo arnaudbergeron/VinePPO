@@ -309,7 +309,8 @@ class OnPolicyEpisodeGenerator(EpisodeGenerator):
         if latest_policy_path is None:
             hf_ckpt_path_or_model = self.initial_model_name_or_path
         else:
-            hf_ckpt_path_or_model = str(latest_policy_path)
+            print(f"latest_policy_path: {latest_policy_path}")
+            hf_ckpt_path_or_model = self.initial_model_name_or_path
 
         vllm_init_fn = self._get_vllm_init_fn(
             results_dir=results_dir,

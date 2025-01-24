@@ -63,7 +63,7 @@ class EpisodeGeneratorWithRewardFunction(OnPolicyEpisodeGenerator, TreeEpisodeUt
                 query_text = path["node_chain"][0]["text"]
                 full_text = path["node_chain"][-1]["full_text"]
                 response_text = full_text[len(query_text) :]
-
+                print("reward_function", self.reward_function)
                 reward, is_unfinished_response = self.reward_function(
                     query_text, response_text, instance
                 )

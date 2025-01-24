@@ -41,9 +41,14 @@ class NextTurnAnswerExtractor(AnswerExtractor):
         print('next_chat_turn', result)
         variables = result.variables()
         final_answer = variables["final_answer"]
-        final_ans_match = re.findall("([0-9]+[,.]+[0-9]+)", final_answer)
-        print(final_ans_match)
-        return final_ans_match[-1]
+        # final_ans_match = re.findall("\d*[.,]?\d*", final_answer)
+        # final_ans_match = [i for i in final_ans_match if i != '']
+        # print(final_ans_match)
+        # if len(final_ans_match) > 0:
+        #     return final_ans_match[-1]
+        # else:
+        #     return ''
+        return final_answer
 
 
 @AnswerExtractor.register("next_chat_turn_code")

@@ -42,6 +42,7 @@ CUDA_VISIBLE_DEVICES=$GPU_IDX /home/mila/a/arnaud.bergeron1/.conda/envs/vine_new
     --dtype bfloat16 \
     --gpu-memory-utilization "$GPU_MEM_UTILIZATION" \
     --max-num-seqs "$MAX_NUM_SEQS" \
+    --enforce-eager \
     $(if [ "$ENABLE_PREFIX_CACHING" = true ]; then echo "--enable-prefix-caching"; fi) \
     $(if [ "$DISABLE_SLIDING_WINDOW" = true ]; then echo "--disable-sliding-window"; fi) \
     $(if [ -n "$MAX_MODEL_LEN" ]; then echo "--max-model-len $MAX_MODEL_LEN"; fi) \

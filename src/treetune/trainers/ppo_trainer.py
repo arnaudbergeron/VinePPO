@@ -715,6 +715,8 @@ class PPOTrainer(DeepSpeedPolicyTrainer):
         attention_mask = inputs["attention_mask"]  # Shape: (batch_size, max_seq_len)
         labels = inputs["labels"]  # Shape: (batch_size, max_seq_len)
         scores = inputs["scores"]  # Shape: (batch_size,)
+        scores_per_token = scores.unsqueeze(1).expand(-1, labels.shape[1]-1)
+
 
         # if self.ppo_hparams.is_mixed_rewards:
         #     scores = scores.float()
@@ -817,14 +819,19 @@ class PPOTrainer(DeepSpeedPolicyTrainer):
             old_logprobs=shifted_actor_logprobs,
             ref_logprobs=shifted_ref_logprobs,
             advantages=advantages,
-            values=values_to_use,
+            values=scores_per_token,
         )
         actor.backward(actor_loss)
         self._check_overflow(actor)
         actor.step()
+        #zero grad
+        actor.zero_grad()
+
         # Get rid of actor's activations to free up memory
         actor_loss = actor_loss.detach().clone()
         release_memory()
+        torch.cuda.empty_cache()
+        torch.cuda.reset_peak_memory_stats()
 
         # Step 3: Compute the critic loss
         if critic is not None and not self.disable_critic_training:
@@ -966,16 +973,21 @@ class PPOTrainer(DeepSpeedPolicyTrainer):
         # Compute the PPO-clip loss
         log_ratio = (logprobs - old_logprobs) * action_mask
         ratio = torch.exp(log_ratio)
-        if self.ppo_hparams.use_rewards:
-            values_sliced = values
-        else:
-            values_sliced = values[:, :-1]
+        # if self.ppo_hparams.use_rewards:
+        #     values_sliced = values
+        # else:
+        #     values_sliced = values[:, :-1]
 
-        pg_losses1 = -advantages * ratio
-        with torch.no_grad():
-            pg_losses1_anomalies = monitor_tensor_anomalies(
-                pg_losses1.detach(), action_mask
-            )
+        values_sliced = (values * 2) - 1
+        print('values:', values_sliced)
+        print('shape:', values_sliced.shape)
+        print('advantages shape:', advantages.shape)
+
+        pg_losses1 = -values_sliced * ratio
+        # with torch.no_grad():
+            # pg_losses1_anomalies = monitor_tensor_anomalies(
+            #     pg_losses1.detach(), action_mask
+            # )
 
         if self.ppo_hparams.clip_sppo_low:
             negative_low_clip = self.ppo_hparams.ppo_clamp_value_low
@@ -991,18 +1003,18 @@ class PPOTrainer(DeepSpeedPolicyTrainer):
         high_clip_mask_negative = ratio > negative_high_clip
         clip_mask_negative = low_clip_mask_negative | high_clip_mask_negative
 
-        loss_low_clip_negative = -advantages * negative_low_clip * log_ratio
-        loss_high_clip_negative = -advantages * negative_high_clip * log_ratio
+        loss_low_clip_negative = -values_sliced * negative_low_clip * log_ratio
+        loss_high_clip_negative = -values_sliced * negative_high_clip * log_ratio
         loss_no_clip_negative = pg_losses1
     
-        loss_negative = torch.where(low_clip_mask_negative, loss_low_clip_negative, loss_no_clip_negative)
-        loss_negative = torch.where(high_clip_mask_negative, loss_high_clip_negative, loss_negative)
+        negative_loss = torch.where(low_clip_mask_negative, loss_low_clip_negative, loss_no_clip_negative)
+        negative_loss = torch.where(high_clip_mask_negative, loss_high_clip_negative, negative_loss)
 
-        pg_losses = loss_negative
+        pg_losses = negative_loss
 
         if self.ppo_hparams.is_mixed_rewards:
             # sppo_loss = -advantages * log_ratio * action_mask
-            ppo_loss = -advantages * ratio * action_mask
+            ppo_loss = -values_sliced * ratio * action_mask
 
 
             log_ratio_sppo = (logprobs-old_logprobs) * action_mask
@@ -1015,13 +1027,20 @@ class PPOTrainer(DeepSpeedPolicyTrainer):
                 high_clip_mask_positive = ratio_sppo > high_clip_positive
                 clip_mask_positive = low_clip_mask_positive | high_clip_mask_positive
 
-                loss_low_clip_positive = -advantages * low_clip_positive * log_ratio_sppo
-                loss_high_clip_positive = -advantages * high_clip_positive * log_ratio_sppo
+                loss_low_clip_positive = -values_sliced * low_clip_positive * log_ratio_sppo
+                loss_high_clip_positive = -values_sliced * high_clip_positive * log_ratio_sppo
 
                 positive_loss = torch.where(low_clip_mask_positive, loss_low_clip_positive, ppo_loss)
                 positive_loss = torch.where(high_clip_mask_positive, loss_high_clip_positive, positive_loss)
 
-            tot_loss, ppo_mask, sppo_mask  = self._get_loss(advantages=advantages, ppo_loss=pg_losses, sppo_loss=positive_loss)
+            # tot_loss, ppo_mask, sppo_mask  = self._get_loss(advantages=values_sliced, ppo_loss=pg_losses, sppo_loss=positive_loss)
+            positive_mask = (values_sliced > 0).float()
+            negative_mask = (values_sliced <= 0).float()
+            tot_loss = positive_loss*positive_mask + negative_loss*negative_mask
+
+            #for metrics
+            ppo_mask = negative_mask
+            sppo_mask = positive_mask
 
             pg_loss = masked_mean(tot_loss, action_mask)
         else:
@@ -1065,9 +1084,9 @@ class PPOTrainer(DeepSpeedPolicyTrainer):
             pg_clip_sppo = masked_mean(
                 clip_mask_positive, sppo_mask
             )
-            sppo_anomalies = monitor_tensor_anomalies(
-                positive_loss.detach(), sppo_mask.bool()
-            )
+            # sppo_anomalies = monitor_tensor_anomalies(
+            #     positive_loss.detach(), sppo_mask.bool()
+            # )
 
         approx_kl = 0.5 * masked_mean((logprobs - old_logprobs) ** 2, action_mask)
         policy_kl = masked_mean(old_logprobs - logprobs, action_mask)
@@ -1077,10 +1096,10 @@ class PPOTrainer(DeepSpeedPolicyTrainer):
             "actor/policy_kl": policy_kl.detach(),
             "actor/clip_frac": pg_clip_frac.detach(),
             "actor/ratio": avg_ratio.detach(),
-            **{
-                f"actor/pg_losses1_anomalies__{i}": v
-                for i, v in pg_losses1_anomalies.items()
-            },
+            # **{
+            #     f"actor/pg_losses1_anomalies__{i}": v
+            #     for i, v in pg_losses1_anomalies.items()
+            # },
         }
         if "entropy" in outputs:
             metrics["actor/logit_entropy"] = outputs["entropy"].detach()
@@ -1184,8 +1203,8 @@ class PPOTrainer(DeepSpeedPolicyTrainer):
 
             metrics['actor/pos_adv_mean_ratio'] = pos_adv_mean / neg_adv_mean
 
-            for i, v in sppo_anomalies.items():
-                metrics[f"actor/sppo_anomalies_{i}"] = v
+            # for i, v in sppo_anomalies.items():
+            #     metrics[f"actor/sppo_anomalies_{i}"] = v
 
         return pg_loss, is_skipped, metrics, ref_kl
     
@@ -1992,7 +2011,12 @@ class PPOTrainer(DeepSpeedPolicyTrainer):
 
                 # Convert 2d tensors to a list of lists
                 logps_seq_lengths = seq_lengths - 1
-                for i, seq_len in enumerate(logps_seq_lengths.squeeze().tolist()):
+                if logps_seq_lengths.shape[-1] == 1:
+                    seq_len_loop = [logps_seq_lengths.squeeze().tolist()]
+                else:
+                    seq_len_loop = logps_seq_lengths.squeeze().tolist()
+
+                for i, seq_len in enumerate(seq_len_loop):
                     assert seq_len <= logps.shape[1]
                     list_of_log_probs.append(logps[i, :seq_len].tolist())
 

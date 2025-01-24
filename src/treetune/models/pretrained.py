@@ -159,7 +159,7 @@ class DIPreTrainedModelForCasualLM(Model, PreTrainedModel):
             if freeze_config.freeze_first_k_layers > 0:
                 counter_frozen_layers = 0
                 model_name = model.config._name_or_path
-                if "meta-llama/llama-2" in model_name.lower():
+                if "meta-llama" in model_name.lower():
                     layers = model.model.layers
                 elif "facebook/opt" in model_name.lower():
                     layers = model.model.decoder.layers
