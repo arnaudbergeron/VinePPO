@@ -37,7 +37,7 @@ local num_mc_rollouts = 1;
     trainer+: {
         general_training_args+: {
             save_steps: 10,
-            checkpoint_keep_steps: 40,
+            checkpoint_keep_steps: 10,
         },
     },
 

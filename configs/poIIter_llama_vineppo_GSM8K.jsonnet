@@ -1,6 +1,6 @@
 local hf_model_name = 'meta-llama/Llama-3.1-8B-Instruct';
 local task = (import 'tasks/gsm8k.jsonnet');
-local total_num_iterations = 3200;
+local total_num_iterations = 50;
 
 
 (import 'poIIter_llama_vineppo_MATH.jsonnet')

@@ -7,9 +7,9 @@
         reduce_scatter: true,
         reduce_bucket_size: 'auto',
         contiguous_gradients: true,
-        // offload_optimizer: {
-        //     device: "cpu",
-        // }
+        offload_optimizer: {
+            device: "cpu",
+        }
     },
     train_batch_size: 1,
 }

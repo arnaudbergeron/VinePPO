@@ -10,12 +10,12 @@ local math_task = (import 'tasks/math_inplace_no_answer_prefix.jsonnet') + {
     ensure_fit_in_context_size: false,
 };
 
-local num_episodes_per_iteration = 400;
+local num_episodes_per_iteration = 64;
 local num_rollouts_per_sample = 1;
 local num_dataset_samples_per_iteration = num_episodes_per_iteration / num_rollouts_per_sample;
-local total_num_iterations = 8;
+local total_num_iterations = 50;
 
-local sampling_temperature = 0.6;
+local sampling_temperature = 1.0;
 
 (import 'gvar.jsonnet')
 + (import 'prompt_library/llama2_sft_gsm8k.jsonnet')
@@ -69,7 +69,7 @@ local sampling_temperature = 0.6;
                 type: 'next_chat_turn',
                 program: $.prompt_library.tree.answer_extract.next_chat_turn,
                 program_kwargs: {
-                temperature: 0,
+                temperature: 1.0,
                 max_tokens: 20,
             },
             },
@@ -98,14 +98,15 @@ local sampling_temperature = 0.6;
         // temp_checkpoint_dir: '/network/scratch/a/arnaud.bergeron1/rlhf/temp_checkpoints',
         actor_model+: { 
             hf_model_name: $.episode_generator.initial_model_name_or_path,
-            freeze_config+:{
-            freeze_first_k_layers: 22,
-            freeze_embeddings: true,
-        }},
+        //     freeze_config+:{
+        //     freeze_first_k_layers: 22,
+        //     freeze_embeddings: true,
+        // }
+        },
         critic_model+: { pretrained_backbone_model+: { hf_model_name: $.episode_generator.initial_model_name_or_path } },
         reference_model+: { hf_model_name: $.episode_generator.initial_model_name_or_path },
 
-        actor_deepspeed_config: (import 'deepspeed/zero_0.jsonnet'),
+        actor_deepspeed_config: (import 'deepspeed/zero_2.jsonnet'),
         critic_deepspeed_config: (import 'deepspeed/zero_0.jsonnet'),
 
         // To prevent OOM errors
@@ -116,8 +117,10 @@ local sampling_temperature = 0.6;
             per_device_train_batch_size: null,  // Will be auto computed
             gradient_accumulation_steps: 1,
 
-            save_steps: 40,
-            checkpoint_keep_steps: 40,
+            save_steps: 25,
+            checkpoint_keep_steps: 10  ,
+            warmup_steps: 1.0,
+            lr_scheduler_type: 'constant',
         },
     },
 

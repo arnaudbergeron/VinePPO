@@ -16,6 +16,10 @@ FIND_NUMBERS_REGEX = re.compile(
     r"(?:[+-]?\d+\.\d*|[+-]?\.\d+|[+-]?\d+e[-+]?\d+|[+-]?\d+)"
 )
 
+FIND_ANS_REGEX = re.compile(
+    r"The answer is (-?\d+(\.\d+)?)"
+)
+
 
 def remove_text_between_symbols(text, start_symbol, end_symbol):
     pattern = f"{re.escape(start_symbol)}.*?{re.escape(end_symbol)}"

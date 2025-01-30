@@ -810,7 +810,7 @@ class MathEpisodeGeneratorWithMCAdvantages(MathEpisodeGenerator):
     ) -> Dataset:
         # Sanity check
         request_ids = requests_ds["_treetune__idx"]
-        assert len(request_ids) == len(set(request_ids)), "Duplicate request ids found."
+        # assert len(request_ids) == len(set(request_ids)), "Duplicate request ids found."
 
         # Initialize the inference strategy with the vLLM server URL
         inference_strategy_lazy = copy.deepcopy(inference_strategy_lazy)

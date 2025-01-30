@@ -979,9 +979,6 @@ class PPOTrainer(DeepSpeedPolicyTrainer):
         #     values_sliced = values[:, :-1]
 
         values_sliced = (values * 2) - 1
-        print('values:', values_sliced)
-        print('shape:', values_sliced.shape)
-        print('advantages shape:', advantages.shape)
 
         pg_losses1 = -values_sliced * ratio
         # with torch.no_grad():

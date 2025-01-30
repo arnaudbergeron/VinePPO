@@ -40,7 +40,7 @@ local num_alternative_actions = 5;
             type: 'next_chat_turn',
             program: $.prompt_library.tree.answer_extract.next_chat_turn,
             program_kwargs: {
-            temperature: 0,
+            temperature: 1.0,
             max_tokens: 20,
         }},
 
