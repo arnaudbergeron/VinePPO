@@ -73,7 +73,7 @@ local ds_stage_2_w_cpu_optimizer = (import '../deepspeed/zero_2.jsonnet') + {
             weight_decay: 0.00,
             warmup_ratio: 0.03,
 
-            max_grad_norm: 1.0,
+            max_grad_norm: 0.5,
 
             dataloader_num_workers: 1,
             dataloader_pin_memory: false,

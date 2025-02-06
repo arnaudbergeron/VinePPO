@@ -56,7 +56,7 @@ local sampling_temperature = 1.0;
                     temperature: sampling_temperature,
                     top_p: 0.9,
                     max_tokens: 1024,
-                    stop: '"<|eot_id|>>"',
+                    stop: '"<|eot_id|>"',
                 },
                 node_text_template: '{chain_of_thought}',
 

@@ -23,7 +23,7 @@ local math_inference_pipeline =
                     temperature: temperature,
                     top_p: 0.9,
                     max_tokens: 1024,
-                    stop: '"<|eot_id|>>"',
+                    stop: '"<|eot_id|>"',
                 },
                 node_text_template: '{chain_of_thought}',
 
@@ -35,7 +35,7 @@ local math_inference_pipeline =
                 type: 'next_chat_turn',
                 program: $.prompt_library.tree.answer_extract.next_chat_turn,
                 program_kwargs: {
-                temperature: 1.0,
+                temperature: 0.35,
                 max_tokens: 20,
             },
             },

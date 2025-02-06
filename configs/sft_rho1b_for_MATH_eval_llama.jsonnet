@@ -24,7 +24,7 @@ local math_inference_pipeline =
                     temperature: temperature,
                     top_p: 0.9,
                     max_tokens: max_tokens,
-                    stop: '"<|eot_id|>>"',
+                    stop: '"<|eot_id|>"',
                 },
                 node_text_template: '{chain_of_thought}',
 

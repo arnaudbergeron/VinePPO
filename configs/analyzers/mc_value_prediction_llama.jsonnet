@@ -24,7 +24,7 @@ local guidance_program = '{{prefix}}{{gen "chain_of_thought" temperature={temper
                 temperature: 1,
                 top_p: 0.9,
                 max_tokens: 1024,
-                stop: '"<|eot_id|>>"',
+                stop: '"<|eot_id|>"',
             },
             node_text_template: '{chain_of_thought}',
             num_expansion_rounds: num_expansion_rounds,

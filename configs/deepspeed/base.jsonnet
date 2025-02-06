@@ -1,6 +1,6 @@
 {
     optimizer: (import 'optimizer.jsonnet'),
-    // scheduler: (import 'lr_scheduler.jsonnet'),
+    scheduler: (import 'lr_scheduler.jsonnet'),
 
     gradient_accumulation_steps: 'auto',
     gradient_clipping: 'auto',

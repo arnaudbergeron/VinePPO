@@ -825,7 +825,7 @@ class PPOTrainer(DeepSpeedPolicyTrainer):
         self._check_overflow(actor)
         actor.step()
         #zero grad
-        actor.zero_grad()
+        # actor.zero_grad()
 
         # Get rid of actor's activations to free up memory
         actor_loss = actor_loss.detach().clone()
@@ -948,35 +948,9 @@ class PPOTrainer(DeepSpeedPolicyTrainer):
         assert logprobs.shape == old_logprobs.shape
         assert action_mask.shape == logprobs.shape
 
-        # if self.ppo_hparams.scale_sign_equal:
-        #     positive_advantages = (advantages > 0).float()
-        #     negative_advantages = (advantages < 0).float()
-        #     pos_adv_mean = torch.mean(advantages[positive_advantages.bool()])
-        #     neg_adv_mean = torch.mean(advantages[negative_advantages.bool()])
-        #     pos_negative_diff = pos_adv_mean + neg_adv_mean
-
-            # if neg_adv_mean.abs() < 0.05:
-            #     pos_negative_diff = 0.0
-
-            # elif pos_negative_diff.isnan().any().item():
-            #     pos_negative_diff = 0.0
-
-            # advantages[positive_advantages.bool()] = advantages[positive_advantages.bool()] - (pos_negative_diff) + 1e-2
-            # pos_negative_ratio = torch.abs(pos_adv_mean / neg_adv_mean)
-            # if pos_negative_ratio.isnan().any().item():
-            #     pos_negative_ratio = 1.0
-            # else:
-            #     pos_negative_ratio = torch.clamp(pos_negative_ratio, 0.2, 5)
-            # advantages[positive_advantages.bool()] = advantages[positive_advantages.bool()] / (pos_negative_ratio)
-
-
         # Compute the PPO-clip loss
         log_ratio = (logprobs - old_logprobs) * action_mask
         ratio = torch.exp(log_ratio)
-        # if self.ppo_hparams.use_rewards:
-        #     values_sliced = values
-        # else:
-        #     values_sliced = values[:, :-1]
 
         values_sliced = (values * 2) - 1
 
@@ -1010,22 +984,18 @@ class PPOTrainer(DeepSpeedPolicyTrainer):
         pg_losses = negative_loss
 
         if self.ppo_hparams.is_mixed_rewards:
-            # sppo_loss = -advantages * log_ratio * action_mask
             ppo_loss = -values_sliced * ratio * action_mask
 
-
-            log_ratio_sppo = (logprobs-old_logprobs) * action_mask
-            ratio_sppo = torch.exp(log_ratio_sppo)
             if self.ppo_hparams.sppo_clamp_value_low is not None or self.ppo_hparams.sppo_clamp_value_high is not None:
                 low_clip_positive = self.ppo_hparams.sppo_clamp_value_low
                 high_clip_positive = self.ppo_hparams.sppo_clamp_value_high
                 
-                low_clip_mask_positive = ratio_sppo < low_clip_positive
-                high_clip_mask_positive = ratio_sppo > high_clip_positive
+                low_clip_mask_positive = ratio < low_clip_positive
+                high_clip_mask_positive = ratio > high_clip_positive
                 clip_mask_positive = low_clip_mask_positive | high_clip_mask_positive
 
-                loss_low_clip_positive = -values_sliced * low_clip_positive * log_ratio_sppo
-                loss_high_clip_positive = -values_sliced * high_clip_positive * log_ratio_sppo
+                loss_low_clip_positive = -values_sliced * low_clip_positive * log_ratio
+                loss_high_clip_positive = -values_sliced * high_clip_positive * log_ratio
 
                 positive_loss = torch.where(low_clip_mask_positive, loss_low_clip_positive, ppo_loss)
                 positive_loss = torch.where(high_clip_mask_positive, loss_high_clip_positive, positive_loss)
@@ -1036,8 +1006,8 @@ class PPOTrainer(DeepSpeedPolicyTrainer):
             tot_loss = positive_loss*positive_mask + negative_loss*negative_mask
 
             #for metrics
-            ppo_mask = negative_mask
-            sppo_mask = positive_mask
+            sppo_mask = negative_mask.float()*clip_mask_negative + positive_mask.float()*clip_mask_positive
+            ppo_mask = (~(sppo_mask.bool())).float()
 
             pg_loss = masked_mean(tot_loss, action_mask)
         else:
