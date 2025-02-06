@@ -19,5 +19,3 @@ singularity exec --nv \
 	--bind $HOME \
 	treetune_v15.sif \
 	./run.sh llama_8b_grad_clip_mixed_constant_lr_max_grad_norm_0_5 mixed_rewards_vine/mixed_rewards_ap_1_bp_1_am_0_bm_1_llama-5e7.jsonnet
-
-# /home/mila/a/arnaud.bergeron1/.conda/envs/vine_new/bin/python src/test.py
